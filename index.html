@@ -1,0 +1,1127 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+  <meta name="theme-color" content="#6B0F1A"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="SIBEE"/>
+  <meta name="description" content="SIBEE Import-Export - Gestion des bons de déchargement"/>
+  <title>SIBEE Import-Export</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌿</text></svg>"/>
+
+  <!-- React via CDN uniquement - pas de Babel nécessaire -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" crossorigin></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" crossorigin></script>
+
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;}
+    html,body{height:100%;background:#6B0F1A;overflow-x:hidden;}
+    #root{min-height:100vh;}
+    #loader{position:fixed;inset:0;background:#6B0F1A;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:99999;transition:opacity .5s;}
+    @keyframes spin{to{transform:rotate(360deg)}}
+  </style>
+</head>
+<body>
+
+  <div id="loader">
+    <div style="font-family:Georgia,serif;color:#F0DFA0;font-size:36px;letter-spacing:4px;font-weight:bold;">SIBEE</div>
+    <div style="color:#D4A843;font-size:11px;letter-spacing:4px;text-transform:uppercase;">Import-Export</div>
+    <div style="margin-top:16px;width:36px;height:36px;border:3px solid rgba(212,168,67,0.2);border-top:3px solid #D4A843;border-radius:50%;animation:spin .8s linear infinite;"></div>
+    <div style="color:rgba(240,223,160,0.6);font-size:12px;margin-top:8px;">Chargement en cours...</div>
+  </div>
+
+  <div id="root"></div>
+
+  <button id="install-btn" onclick="installApp()" style="display:none;position:fixed;bottom:20px;right:20px;z-index:9999;padding:10px 18px;background:#1F4E79;color:#fff;border:none;border-radius:24px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 4px 20px rgba(0,0,0,0.3);">
+    📱 Installer l'app
+  </button>
+
+  <script>
+    // Expose React hooks globally depuis le CDN UMD
+    const { useState, useEffect, useRef } = React;
+
+    // PWA Install
+    var deferredPrompt;
+    window.addEventListener('beforeinstallprompt', function(e){
+      e.preventDefault(); deferredPrompt = e;
+      document.getElementById('install-btn').style.display = 'flex';
+    });
+    function installApp(){
+      if(deferredPrompt){ deferredPrompt.prompt(); deferredPrompt=null; document.getElementById('install-btn').style.display='none'; }
+    }
+
+    // Service Worker hors-ligne
+    if('serviceWorker' in navigator){
+      window.addEventListener('load', function(){
+        var sw = "\nvar CACHE='sibee-v3';\nvar URLS=[\n  'https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js',\n  'https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js'\n];\nself.addEventListener('install',function(e){\n  e.waitUntil(caches.open(CACHE).then(function(c){return c.addAll(URLS);}));\n});\nself.addEventListener('fetch',function(e){\n  if(e.request.url.includes('jsonbin.io')) return;\n  e.respondWith(caches.match(e.request).then(function(r){\n    return r || fetch(e.request).catch(function(){return caches.match('/');});\n  }));\n});\n";
+        var blob = new Blob([sw], {type:'text/javascript'});
+        navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(function(){});
+      });
+    }
+
+    // Masquer loader
+    window.__hideLo = function(){
+      var l = document.getElementById('loader');
+      if(l){ l.style.opacity='0'; setTimeout(function(){ l.style.display='none'; }, 500); }
+    };
+  </script>
+
+  <!-- Code pré-compilé (pas de Babel) -->
+  <script>
+const JSONBIN_KEY = "$2a$10$2rwN2AwGcnAttrC95mlolORTpm3uYZh0mK1a91fHAx/36DN6kh3Bm";
+const JSONBIN_COLLECTION = "69a2558dd0ea881f40e0b323";
+const JSONBIN_URL = "https://api.jsonbin.io/v3";
+const C = {
+  dark: "#6B0F1A",
+  main: "#8B1A2A",
+  light: "#B5243A",
+  gold: "#D4A843",
+  goldL: "#F0DFA0",
+  goldD: "#A87830",
+  bg: "#F8EEE8",
+  bg2: "#F2E4DC",
+  border: "#D4B8B0",
+  white: "#FFFFFF",
+  alt: "#FDF0ED",
+  muted: "#8a6060",
+  text: "#1a1a1a",
+  success: "#1a6b3a",
+  successBg: "#edf7ee",
+  warn: "#c0392b",
+  warnBg: "#fdf0ee",
+  info: "#1F4E79",
+  infoBg: "#EBF3FB"
+};
+const fmt = (n) => {
+  const v = parseFloat(n);
+  return isNaN(v) ? "0" : v.toLocaleString("fr-FR");
+};
+const montR = (r) => (parseFloat(r == null ? void 0 : r.qty) || 0) * (parseFloat(r == null ? void 0 : r.prix) || 0);
+const totQ = (qs, rows) => (qs || []).reduce((s, q) => s + montR((rows == null ? void 0 : rows[q.key]) || {}), 0);
+const totAv = (bon) => {
+  var _a;
+  if ((_a = bon == null ? void 0 : bon.paiements) == null ? void 0 : _a.length) return bon.paiements.reduce((s, p) => s + (parseFloat(p.montant) || 0), 0);
+  return parseFloat(bon == null ? void 0 : bon.avance) || 0;
+};
+const uid = () => "q_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6);
+const dFmt = (d) => d ? (/* @__PURE__ */ new Date(d + "T12:00:00")).toLocaleDateString("fr-FR") : "\u2014";
+const now = () => (/* @__PURE__ */ new Date()).toISOString();
+const today = () => (/* @__PURE__ */ new Date()).toLocaleDateString("fr-CA", { timeZone: "Africa/Abidjan" });
+const genBonNum = (existing = []) => {
+  const year = (/* @__PURE__ */ new Date()).getFullYear();
+  const nums = existing.map((b) => b.numero ? parseInt(b.numero.split("-")[2]) || 0 : 0);
+  const max = nums.length ? Math.max(...nums) : 0;
+  return `BON-${year}-${String(max + 1).padStart(4, "0")}`;
+};
+const APP_PASSWORD = "sibee2026";
+const DEF_Q = [
+  { key: "krinkrin", label: "KRINKRIN", badge: "Premier" },
+  { key: "dechet_kk", label: "D\xC9CHET KK", badge: null },
+  { key: "assawa", label: "ASSAWA", badge: null },
+  { key: "dechet_as", label: "D\xC9CHET AS", badge: null }
+];
+const newForm = (qs, numero = "") => {
+  const rows = {};
+  (qs || DEF_Q).forEach((q) => {
+    rows[q.key] = { qty: "", prix: "" };
+  });
+  return {
+    numero,
+    date: today(),
+    fournisseur: "",
+    telephone: "",
+    convoyeur: "",
+    chauffeur: "",
+    matricule: "",
+    paiements: [],
+    qualities: qs || DEF_Q,
+    rows
+  };
+};
+const validate = (form) => {
+  var _a, _b;
+  const errs = {};
+  if (!((_a = form.fournisseur) == null ? void 0 : _a.trim())) errs.fournisseur = "Nom du fournisseur requis";
+  if (!form.date) errs.date = "Date requise";
+  if (!((_b = form.telephone) == null ? void 0 : _b.trim())) errs.telephone = "T\xE9l\xE9phone requis";
+  const hasQty = (form.qualities || []).some((q) => {
+    var _a2, _b2;
+    return (parseFloat((_b2 = (_a2 = form.rows) == null ? void 0 : _a2[q.key]) == null ? void 0 : _b2.qty) || 0) > 0;
+  });
+  if (!hasQty) errs.rows = "Au moins une quantit\xE9 requise";
+  const av = totAv(form);
+  const tot = totQ(form.qualities, form.rows);
+  if (av > tot && tot > 0) errs.paiements = "Le total des avances d\xE9passe le montant du bon";
+  return errs;
+};
+function generateWordDoc(bon) {
+  const x = (s) => String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const qs = bon.qualities || DEF_Q, total = totQ(qs, bon.rows);
+  const av = totAv(bon), reste = total - av;
+  const BRD = "6B0F1A", GLD = "D4A843";
+  const font = `<w:rFonts w:ascii="Georgia" w:hAnsi="Georgia"/>`;
+  const sz = (s) => `<w:sz w:val="${s * 2}"/><w:szCs w:val="${s * 2}"/>`;
+  const clr = (h) => `<w:color w:val="${h}"/>`;
+  const run = (t, rpr = "") => `<w:r><w:rPr>${font}${rpr}</w:rPr><w:t xml:space="preserve">${t}</w:t></w:r>`;
+  const para = (content, ppr = "") => `<w:p><w:pPr>${ppr}</w:pPr>${content}</w:p>`;
+  const ctr = `<w:jc w:val="center"/>`;
+  const spc = (b, a2) => `<w:spacing w:before="${b}" w:after="${a2}"/>`;
+  const cell = (txt, o = {}) => {
+    const { w = 2e3, bg = "", b = false, col = "", center = false, s = 10 } = o;
+    const shd = bg ? `<w:shd w:val="clear" w:color="auto" w:fill="${bg}"/>` : "";
+    const mar = `<w:tcMar><w:top w:w="80" w:type="dxa"/><w:bottom w:w="80" w:type="dxa"/><w:left w:w="100" w:type="dxa"/><w:right w:w="100" w:type="dxa"/></w:tcMar>`;
+    const ppr = center ? `<w:jc w:val="center"/>` : "";
+    const rpr = `${font}${sz(s)}${b ? `<w:b/>` : ""}${col ? clr(col) : ""}`;
+    return `<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/>${shd}${mar}</w:tcPr><w:p><w:pPr>${ppr}</w:pPr><w:r><w:rPr>${rpr}</w:rPr><w:t xml:space="preserve">${txt || "\u2014"}</w:t></w:r></w:p></w:tc>`;
+  };
+  const bdr = `<w:tblBorders><w:top w:val="single" w:sz="4" w:color="D4B8B0"/><w:left w:val="single" w:sz="4" w:color="D4B8B0"/><w:bottom w:val="single" w:sz="4" w:color="D4B8B0"/><w:right w:val="single" w:sz="4" w:color="D4B8B0"/><w:insideH w:val="single" w:sz="4" w:color="D4B8B0"/><w:insideV w:val="single" w:sz="4" w:color="D4B8B0"/></w:tblBorders>`;
+  const nobdr = `<w:tblBorders><w:top w:val="none"/><w:left w:val="none"/><w:bottom w:val="none"/><w:right w:val="none"/><w:insideH w:val="none"/><w:insideV w:val="none"/></w:tblBorders>`;
+  const tblW = `<w:tblW w:w="8900" w:type="dxa"/>`;
+  const infoRows = [
+    ["DATE", x(dFmt(bon.date))],
+    ["FOURNISSEUR", x(bon.fournisseur)],
+    ["T\xC9L\xC9PHONE", x(bon.telephone)],
+    ["CONVOYEUR", x(bon.convoyeur)],
+    ["CHAUFFEUR", x(bon.chauffeur)],
+    ["N\xB0 MATRICULE", x(bon.matricule)]
+  ].map(([l, v]) => `<w:tr>${cell(l, { w: 3200, bg: BRD, b: true, col: "F0DFA0", s: 9 })}${cell(v, { w: 5700, s: 10 })}</w:tr>`).join("");
+  const qRows = qs.map((q, i) => {
+    const r = bon.rows[q.key] || {}, qty = parseFloat(r.qty) || 0, px = parseFloat(r.prix) || 0, m = qty * px;
+    const bg = i % 2 === 0 ? "FFFFFF" : "FDF0ED";
+    const lbl = x(q.label.toUpperCase() + (q.badge ? ` (${q.badge})` : ""));
+    return `<w:tr>${cell(lbl, { w: 3e3, b: true, col: BRD, s: 10, bg })}${cell(x(fmt(qty)), { w: 2e3, center: true, s: 10, bg })}${cell(x(fmt(px)), { w: 2e3, center: true, s: 10, bg })}${cell(x(fmt(m)), { w: 1900, center: true, b: true, s: 10, bg })}</w:tr>`;
+  }).join("");
+  const docXml = [
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`,
+    `<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>`,
+    para(run("SIBEE IMPORT-EXPORT", `<w:b/>${clr(BRD)}${sz(18)}${font}`), `${ctr}${spc(0, 60)}`),
+    para(run("Commerce de produits agricoles", `${clr(GLD)}${sz(9)}${font}`), `${ctr}${spc(0, 40)}`),
+    para("", `<w:pBdr><w:bottom w:val="double" w:sz="6" w:space="1" w:color="${BRD}"/></w:pBdr>${spc(0, 100)}`),
+    para(run("Bon de D\xE9chargement d'Ignames", `<w:b/>${clr(BRD)}${sz(13)}${font}`), `${ctr}${spc(80, 60)}`),
+    bon.numero ? para(run(`N\xB0 ${x(bon.numero)}`, `<w:b/>${clr(GLD)}${sz(10)}${font}`), `${ctr}${spc(0, 160)}`) : para("", spc(0, 40)),
+    `<w:tbl><w:tblPr>${tblW}${bdr}</w:tblPr><w:tblGrid><w:gridCol w:w="3200"/><w:gridCol w:w="5700"/></w:tblGrid>${infoRows}</w:tbl>`,
+    para("", spc(0, 100)),
+    `<w:tbl><w:tblPr>${tblW}${bdr}</w:tblPr><w:tblGrid><w:gridCol w:w="3000"/><w:gridCol w:w="2000"/><w:gridCol w:w="2000"/><w:gridCol w:w="1900"/></w:tblGrid>`,
+    `<w:tr>${cell("QUALIT\xC9", { w: 3e3, bg: BRD, b: true, col: "F0DFA0", s: 9 })}${cell("QUANTIT\xC9 (KG)", { w: 2e3, bg: BRD, b: true, col: "F0DFA0", center: true, s: 9 })}${cell("PRIX / KG", { w: 2e3, bg: BRD, b: true, col: "F0DFA0", center: true, s: 9 })}${cell("MONTANT FCFA", { w: 1900, bg: BRD, b: true, col: "F0DFA0", center: true, s: 9 })}</w:tr>`,
+    qRows,
+    `</w:tbl>`,
+    `<w:tbl><w:tblPr>${tblW}${bdr}</w:tblPr><w:tblGrid><w:gridCol w:w="7000"/><w:gridCol w:w="1900"/></w:tblGrid>`,
+    `<w:tr>${cell("POIDS &amp; SOMME TOTAL", { w: 7e3, bg: BRD, b: true, col: "F0DFA0", s: 9 })}${cell(x(fmt(total)) + " FCFA", { w: 1900, center: true, b: true, col: GLD, bg: BRD, s: 11 })}</w:tr>`,
+    ...bon.paiements && bon.paiements.length > 0 ? bon.paiements.map((p) => `<w:tr>${cell(x("Paiement " + dFmt(p.date) + (p.note ? " - " + p.note : "")), { w: 7e3, bg: "F8EEE8", col: BRD, s: 9 })}${cell(x(fmt(p.montant)) + " FCFA", { w: 1900, center: true, b: true, col: BRD, bg: "F8EEE8", s: 10 })}</w:tr>`) : [`<w:tr>${cell("AVANCE VERS\xC9E", { w: 7e3, bg: "F8EEE8", b: true, col: BRD, s: 9 })}${cell(x(fmt(av)) + " FCFA", { w: 1900, center: true, b: true, col: BRD, bg: "F8EEE8", s: 10 })}</w:tr>`],
+    `<w:tr>${cell("RESTE \xC0 PAYER", { w: 7e3, bg: BRD, b: true, col: "F0DFA0", s: 9 })}${cell(x(fmt(reste)) + " FCFA", { w: 1900, center: true, b: true, col: GLD, bg: BRD, s: 11 })}</w:tr>`,
+    `</w:tbl>`,
+    para("", spc(0, 80)),
+    para(run("Ladite avance re\xE7ue par le convoyeur", `${clr("888888")}${sz(9)}${font}`), `${ctr}<w:pBdr><w:bottom w:val="single" w:sz="4" w:space="2" w:color="D4B8B0"/></w:pBdr>${spc(80, 60)}`),
+    (() => {
+      const d = /* @__PURE__ */ new Date();
+      const hci = d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Africa/Abidjan" });
+      const dci = d.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric", timeZone: "Africa/Abidjan" });
+      return para(run(`Imprim\xE9 le ${x(dci)} \xE0 ${x(hci)} (Abidjan)`, `${clr("999999")}${sz(8)}${font}`), `${ctr}${spc(0, 500)}`);
+    })(),
+    `<w:tbl><w:tblPr>${tblW}${nobdr}</w:tblPr><w:tblGrid><w:gridCol w:w="4200"/><w:gridCol w:w="500"/><w:gridCol w:w="4200"/></w:tblGrid>`,
+    `<w:tr>${cell("Responsable", { w: 4200, center: true, b: true, col: BRD, s: 9 })}${cell("", { w: 500 })}${cell("Convoyeur", { w: 4200, center: true, b: true, col: BRD, s: 9 })}</w:tr>`,
+    `<w:tr>${cell("", { w: 4200 })}${cell("", { w: 500 })}${cell("", { w: 4200 })}</w:tr>`,
+    `<w:tr>${cell("Signature &amp; Cachet", { w: 4200, center: true, col: "888888", s: 8 })}${cell("", { w: 500 })}${cell("Signature", { w: 4200, center: true, col: "888888", s: 8 })}</w:tr>`,
+    `</w:tbl>`,
+    `<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134"/></w:sectPr>`,
+    `</w:body></w:document>`
+  ].join("");
+  const ct = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>`;
+  const rels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`;
+  const wRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`;
+  const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Georgia" w:hAnsi="Georgia"/><w:sz w:val="20"/></w:rPr></w:rPrDefault></w:docDefaults></w:styles>`;
+  function buildZip(files) {
+    const e = new TextEncoder();
+    function crc32(d) {
+      const t = [];
+      for (let i = 0; i < 256; i++) {
+        let c2 = i;
+        for (let j = 0; j < 8; j++) c2 = c2 & 1 ? 3988292384 ^ c2 >>> 1 : c2 >>> 1;
+        t[i] = c2;
+      }
+      let c = 4294967295;
+      for (let i = 0; i < d.length; i++) c = c >>> 8 ^ t[(c ^ d[i]) & 255];
+      return (c ^ 4294967295) >>> 0;
+    }
+    function u16(n) {
+      return new Uint8Array([n & 255, n >> 8 & 255]);
+    }
+    function u32(n) {
+      return new Uint8Array([n & 255, n >> 8 & 255, n >> 16 & 255, n >> 24 & 255]);
+    }
+    function cat(...a2) {
+      const l = a2.reduce((s, x2) => s + x2.length, 0), o = new Uint8Array(l);
+      let p = 0;
+      a2.forEach((x2) => {
+        o.set(x2, p);
+        p += x2.length;
+      });
+      return o;
+    }
+    const parts = [], cd = [];
+    let off = 0;
+    for (const [name, content] of files) {
+      const nb = e.encode(name), db = e.encode(content), crc = crc32(db);
+      const lh = cat(new Uint8Array([80, 75, 3, 4]), u16(20), u16(0), u16(0), u16(0), u16(0), u32(crc), u32(db.length), u32(db.length), u16(nb.length), u16(0), nb, db);
+      cd.push({ nb, crc, size: db.length, off });
+      parts.push(lh);
+      off += lh.length;
+    }
+    const cdo = off;
+    const cdp = cd.map(({ nb, crc, size, off: o }) => cat(new Uint8Array([80, 75, 1, 2]), u16(20), u16(20), u16(0), u16(0), u16(0), u16(0), u32(crc), u32(size), u32(size), u16(nb.length), u16(0), u16(0), u16(0), u16(0), u32(0), u32(o), nb));
+    const cds = cdp.reduce((s, p) => s + p.length, 0);
+    const eocd = cat(new Uint8Array([80, 75, 5, 6]), u16(0), u16(0), u16(cd.length), u16(cd.length), u32(cds), u32(cdo), u16(0));
+    const all = [...parts, ...cdp, eocd], tot = all.reduce((s, p) => s + p.length, 0), out = new Uint8Array(tot);
+    let pos = 0;
+    all.forEach((p) => {
+      out.set(p, pos);
+      pos += p.length;
+    });
+    return out;
+  }
+  const zip = buildZip([["[Content_Types].xml", ct], ["_rels/.rels", rels], ["word/document.xml", docXml], ["word/styles.xml", styles], ["word/_rels/document.xml.rels", wRels]]);
+  const blob = new Blob([zip], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+  const url = URL.createObjectURL(blob), a = document.createElement("a");
+  a.href = url;
+  a.download = `Bon_SIBEE_${(bon.numero || bon.fournisseur || "doc").replace(/[^a-zA-Z0-9_-]/g, "_")}_${bon.date || "date"}.docx`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 5e3);
+}
+const Btn = ({ v = "outline", onClick, disabled, children, sm, full, type = "button" }) => {
+  const S = {
+    primary: { bg: C.dark, color: C.goldL, border: "none" },
+    gold: { bg: C.gold, color: C.dark, border: "none" },
+    danger: { bg: C.warnBg, color: C.warn, border: `1.5px solid ${C.warn}` },
+    word: { bg: "#1F4E79", color: "#fff", border: "none" },
+    ghost: { bg: "transparent", color: C.dark, border: `1.5px solid ${C.border}` },
+    outline: { bg: "transparent", color: C.dark, border: `1.5px solid ${C.dark}` }
+  };
+  const st = S[v] || S.outline;
+  return /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      type,
+      onClick,
+      disabled,
+      style: {
+        padding: sm ? "6px 12px" : "9px 18px",
+        fontFamily: "inherit",
+        fontSize: sm ? 10 : 11,
+        fontWeight: 700,
+        letterSpacing: 1,
+        textTransform: "uppercase",
+        cursor: disabled ? "not-allowed" : "pointer",
+        borderRadius: 2,
+        border: st.border,
+        background: st.bg,
+        color: st.color,
+        opacity: disabled ? 0.4 : 1,
+        whiteSpace: "nowrap",
+        width: full ? "100%" : "auto",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+        justifyContent: "center",
+        transition: "opacity .15s"
+      }
+    },
+    children
+  );
+};
+const Badge = ({ color = C.dark, bg = C.goldL, children }) => /* @__PURE__ */ React.createElement("span", { style: { display: "inline-block", fontSize: 10, background: bg, color, padding: "2px 8px", borderRadius: 10, fontWeight: 700, letterSpacing: 0.5 } }, children);
+const Alert = ({ type = "info", children, onClose }) => {
+  const colors = { success: { bg: C.successBg, color: C.success, border: "#b7e0c4" }, error: { bg: C.warnBg, color: C.warn, border: "#f0c0bc" }, warn: { bg: "#fef9e7", color: "#b7770d", border: "#f9e79f" } };
+  const s = colors[type] || colors.info;
+  return /* @__PURE__ */ React.createElement("div", { style: { padding: "10px 14px", background: s.bg, border: `1px solid ${s.border}`, borderRadius: 3, color: s.color, fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 12 } }, /* @__PURE__ */ React.createElement("span", null, children), onClose && /* @__PURE__ */ React.createElement("button", { onClick: onClose, style: { background: "none", border: "none", cursor: "pointer", color: s.color, fontSize: 16, lineHeight: 1, fontWeight: "bold" } }, "\xD7"));
+};
+function App() {
+  const [bons, setBons] = useState([]);
+  const [qualities, setQualities] = useState(DEF_Q);
+  const [fournisseurs, setFournisseurs] = useState([]);
+  const [view, setView] = useState("dashboard");
+  const [form, setForm] = useState(() => newForm(DEF_Q));
+  const [editId, setEditId] = useState(null);
+  const [errors, setErrors] = useState({});
+  const [saved, setSaved] = useState("");
+  const [search, setSearch] = useState("");
+  const [filterDate, setFilterDate] = useState("");
+  const [qModal, setQModal] = useState(false);
+  const [editQ, setEditQ] = useState([]);
+  const [newLabel, setNewLabel] = useState("");
+  const [newBadge, setNewBadge] = useState("");
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
+  const [showAudit, setShowAudit] = useState(null);
+  const [fournSugg, setFournSugg] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [printModal, setPrintModal] = useState(null);
+  const [deleteModal, setDeleteModal] = useState(null);
+  const [binId, setBinId] = useState(null);
+  const [syncStatus, setSyncStatus] = useState("loading");
+  const [isAuth, setIsAuth] = useState(false);
+  const [pwInput, setPwInput] = useState("");
+  const [pwError, setPwError] = useState(false);
+  const [filterStatus, setFilterStatus] = useState("");
+  useEffect(() => {
+    let timer;
+    const h = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => setIsMobile(window.innerWidth < 640), 200);
+    };
+    window.addEventListener("resize", h);
+    return () => {
+      window.removeEventListener("resize", h);
+      clearTimeout(timer);
+    };
+  }, []);
+  useEffect(() => {
+    (async () => {
+      var _a;
+      setSyncStatus("loading");
+      let binId2 = null;
+      try {
+        binId2 = localStorage.getItem("sibee-binid");
+      } catch (e) {
+      }
+      if (!binId2) {
+        try {
+          const r = await fetch(`${JSONBIN_URL}/b?collectionId=${JSONBIN_COLLECTION}`, {
+            headers: { "X-Master-Key": JSONBIN_KEY }
+          });
+          const d = await r.json();
+          if (d.result && d.result.length > 0) {
+            binId2 = d.result[d.result.length - 1].record;
+          }
+        } catch (e) {
+        }
+      }
+      if (!binId2) {
+        try {
+          const r = await fetch(`${JSONBIN_URL}/b`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-Master-Key": JSONBIN_KEY, "X-Collection-Id": JSONBIN_COLLECTION, "X-Bin-Name": "sibee-data" },
+            body: JSON.stringify({ bons: [], qualities: [], fournisseurs: [] })
+          });
+          const d = await r.json();
+          binId2 = (_a = d.metadata) == null ? void 0 : _a.id;
+        } catch (e) {
+        }
+      }
+      if (binId2) {
+        setBinId(binId2);
+        try {
+          localStorage.setItem("sibee-binid", binId2);
+        } catch (e) {
+        }
+        try {
+          const r = await fetch(`${JSONBIN_URL}/b/${binId2}/latest`, {
+            headers: { "X-Master-Key": JSONBIN_KEY }
+          });
+          const d = await r.json();
+          if (d.record) {
+            if (d.record.bons) setBons(d.record.bons);
+            if (d.record.qualities) setQualities(d.record.qualities);
+            if (d.record.fournisseurs) setFournisseurs(d.record.fournisseurs);
+          }
+          setSyncStatus("ok");
+          setTimeout(() => setSyncStatus(""), 2e3);
+        } catch (e) {
+          setSyncStatus("error");
+        }
+      } else {
+        setSyncStatus("error");
+      }
+    })();
+  }, []);
+  const saveAll = async (newBons, newQualities, newFourns) => {
+    if (!binId) return;
+    setSyncStatus("saving");
+    try {
+      await fetch(`${JSONBIN_URL}/b/${binId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", "X-Master-Key": JSONBIN_KEY },
+        body: JSON.stringify({
+          bons: newBons !== void 0 ? newBons : bons,
+          qualities: newQualities !== void 0 ? newQualities : qualities,
+          fournisseurs: newFourns !== void 0 ? newFourns : fournisseurs,
+          updatedAt: now()
+        })
+      });
+      setSyncStatus("ok");
+      setTimeout(() => setSyncStatus(""), 2e3);
+    } catch (e) {
+      setSyncStatus("error");
+    }
+  };
+  const saveB = async (l) => saveAll(l, void 0, void 0);
+  const saveQ = async (l) => saveAll(void 0, l, void 0);
+  const saveF = async (l) => saveAll(void 0, void 0, l);
+  function exportExcel(liste) {
+    if (!liste.length) return;
+    const rows = [
+      ["N\xB0 Bon", "Date", "Fournisseur", "T\xE9l\xE9phone", "Convoyeur", "Chauffeur", "Matricule", "Total FCFA", "Avance FCFA", "Reste \xE0 payer FCFA"]
+    ];
+    liste.forEach((b) => {
+      const qs = b.qualities || DEF_Q, t = totQ(qs, b.rows), av = totAv(b) || 0;
+      rows.push([b.numero || "", dFmt(b.date), b.fournisseur || "", b.telephone || "", b.convoyeur || "", b.chauffeur || "", b.matricule || "", t, av, t - av]);
+    });
+    const csv = rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(";")).join("\n");
+    const bom = "\uFEFF";
+    const blob = new Blob([bom + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob), a = document.createElement("a");
+    a.href = url;
+    a.download = `SIBEE_Bons_${today()}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 3e3);
+  }
+  useEffect(() => {
+    const limit = 30 * 24 * 60 * 60 * 1e3, now30 = Date.now();
+    const alerts = bons.filter((b) => {
+      const t = totQ(b.qualities || DEF_Q, b.rows), av = totAv(b) || 0;
+      return t - av > 0;
+    }).filter((b) => {
+      const created = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return now30 - created > limit;
+    }).map((b) => ({ id: b.id, msg: `${b.fournisseur} \u2014 Reste de ${fmt(totQ(b.qualities || DEF_Q, b.rows) - totAv(b))} FCFA depuis +30 jours` }));
+    setNotifications(alerts);
+  }, [bons]);
+  async function saveFourn(bon) {
+    var _a;
+    if (!((_a = bon.fournisseur) == null ? void 0 : _a.trim())) return;
+    const exists = fournisseurs.find((f) => f.nom.toLowerCase() === bon.fournisseur.toLowerCase());
+    if (!exists) {
+      const nf = { id: Date.now(), nom: bon.fournisseur, telephone: bon.telephone || "", convoyeur: bon.convoyeur || "", addedAt: now() };
+      const nl = [nf, ...fournisseurs];
+      setFournisseurs(nl);
+      await saveF(nl);
+    }
+  }
+  function handleFournChange(val) {
+    setForm((p) => ({ ...p, fournisseur: val }));
+    setErrors((p) => ({ ...p, fournisseur: void 0 }));
+    if (val.trim().length >= 2) {
+      const q = val.toLowerCase();
+      setFournSugg(fournisseurs.filter((f) => f.nom.toLowerCase().includes(q)).slice(0, 6));
+    } else {
+      setFournSugg([]);
+    }
+  }
+  function selectFourn(f) {
+    setForm((p) => ({ ...p, fournisseur: f.nom, telephone: f.telephone || p.telephone, convoyeur: f.convoyeur || p.convoyeur }));
+    setErrors((p) => ({ ...p, fournisseur: void 0 }));
+    setFournSugg([]);
+  }
+  function handleNew() {
+    const num = genBonNum(bons);
+    setForm(newForm(qualities, num));
+    setEditId(null);
+    setErrors({});
+    setView("form");
+  }
+  function handleEdit(bon) {
+    const rows = { ...bon.rows };
+    const qs = bon.qualities || qualities;
+    qs.forEach((q) => {
+      if (!rows[q.key]) rows[q.key] = { qty: "", prix: "" };
+    });
+    let paiements = bon.paiements || [];
+    if (!paiements.length && (parseFloat(bon.avance) || 0) > 0) {
+      paiements = [{ id: Date.now(), date: bon.date || today(), montant: String(parseFloat(bon.avance) || 0), note: "Avance initiale" }];
+    }
+    setForm({ ...bon, rows, qualities: qs, paiements });
+    setEditId(bon.id);
+    setErrors({});
+    setView("form");
+  }
+  async function handleSave() {
+    var _a;
+    const errs = validate(form);
+    if (Object.keys(errs).length) {
+      setErrors(errs);
+      return;
+    }
+    setErrors({});
+    const auditEntry = { at: now(), by: "Utilisateur", action: editId ? "Modification" : "Cr\xE9ation" };
+    let bonForPrint;
+    if (editId) {
+      const updated = {
+        ...form,
+        id: editId,
+        updatedAt: now(),
+        updatedBy: "Utilisateur",
+        audit: [...((_a = bons.find((b) => b.id === editId)) == null ? void 0 : _a.audit) || [], auditEntry]
+      };
+      const nl = bons.map((b) => b.id === editId ? updated : b);
+      setBons(nl);
+      await saveB(nl);
+      bonForPrint = updated;
+    } else {
+      const bon = { ...form, id: Date.now(), createdAt: now(), createdBy: "Utilisateur", audit: [auditEntry] };
+      const nl = [bon, ...bons];
+      setBons(nl);
+      await saveB(nl);
+      await saveFourn(bon);
+      bonForPrint = bon;
+    }
+    setSaved(editId ? "Bon modifi\xE9 avec succ\xE8s !" : "Bon enregistr\xE9 avec succ\xE8s !");
+    setPrintModal(bonForPrint);
+  }
+  async function handleDelete(id) {
+    const nl = bons.filter((b) => b.id !== id);
+    setBons(nl);
+    await saveB(nl);
+    setDeleteModal(null);
+    setSaved("Bon supprim\xE9.");
+    setTimeout(() => setSaved(""), 2e3);
+  }
+  const openQ = () => {
+    setEditQ(qualities.map((q) => ({ ...q })));
+    setNewLabel("");
+    setNewBadge("");
+    setQModal(true);
+  };
+  const moveQ = (i, d) => {
+    const a = [...editQ], j = i + d;
+    if (j < 0 || j >= a.length) return;
+    [a[i], a[j]] = [a[j], a[i]];
+    setEditQ(a);
+  };
+  const delQ = (k) => setEditQ((e) => e.filter((q) => q.key !== k));
+  const updQ = (k, f, v) => setEditQ((e) => e.map((q) => q.key === k ? { ...q, [f]: v || null } : q));
+  const addQ = () => {
+    if (!newLabel.trim()) return;
+    setEditQ((e) => [...e, { key: uid(), label: newLabel.trim(), badge: newBadge.trim() || null }]);
+    setNewLabel("");
+    setNewBadge("");
+  };
+  async function applyQ() {
+    const nq = editQ.filter((q) => {
+      var _a;
+      return (_a = q.label) == null ? void 0 : _a.trim();
+    });
+    const nr = {};
+    nq.forEach((q) => {
+      nr[q.key] = form.rows[q.key] || { qty: "", prix: "" };
+    });
+    setQualities(nq);
+    setForm((f) => ({ ...f, qualities: nq, rows: nr }));
+    await saveQ(nq);
+    setQModal(false);
+  }
+  const total = totQ(form.qualities, form.rows);
+  const avance = totAv(form);
+  const reste = total - avance;
+  const filtered = bons.filter((b) => {
+    var _a, _b, _c;
+    const q = search.trim().toLowerCase();
+    const matchQ = !q || ((_a = b.telephone) == null ? void 0 : _a.includes(search.trim())) || ((_b = b.fournisseur) == null ? void 0 : _b.toLowerCase().includes(q)) || ((_c = b.numero) == null ? void 0 : _c.toLowerCase().includes(q));
+    const matchD = !filterDate || b.date === filterDate;
+    const t = totQ(b.qualities || DEF_Q, b.rows), av = totAv(b) || 0, reste2 = t - av;
+    const matchS = !filterStatus || (filterStatus === "solde" ? reste2 <= 0 : reste2 > 0);
+    return matchQ && matchD && matchS;
+  });
+  const thisMonth = (/* @__PURE__ */ new Date()).toISOString().slice(0, 7);
+  const bonsMonth = bons.filter((b) => {
+    var _a;
+    return (_a = b.date) == null ? void 0 : _a.startsWith(thisMonth);
+  });
+  const totalMonth = bonsMonth.reduce((s, b) => s + totQ(b.qualities || DEF_Q, b.rows), 0);
+  const totalReste = bons.reduce((s, b) => {
+    const t = totQ(b.qualities || DEF_Q, b.rows), av = totAv(b) || 0;
+    return s + Math.max(0, t - av);
+  }, 0);
+  const totalVol = bons.reduce((s, b) => {
+    const qs = b.qualities || DEF_Q;
+    return s + qs.reduce((ss, q) => {
+      var _a, _b;
+      return ss + (parseFloat((_b = (_a = b.rows) == null ? void 0 : _a[q.key]) == null ? void 0 : _b.qty) || 0);
+    }, 0);
+  }, 0);
+  const topFourns = Object.entries(bons.reduce((acc, b) => {
+    if (b.fournisseur) {
+      acc[b.fournisseur] = (acc[b.fournisseur] || 0) + 1;
+    }
+    return acc;
+  }, {})).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const volParQ = qualities.map((q) => ({ label: q.label, vol: bons.reduce((s, b) => {
+    var _a, _b;
+    return s + (parseFloat((_b = (_a = b.rows) == null ? void 0 : _a[q.key]) == null ? void 0 : _b.qty) || 0);
+  }, 0) }));
+  const css = `
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
+    *{box-sizing:border-box;margin:0;padding:0;}
+    html,body{font-family:'DM Sans',Georgia,sans-serif;-webkit-text-size-adjust:100%;touch-action:manipulation;overflow-x:hidden;}
+    input,button,select{font-family:inherit;font-size:16px;}
+    input[type=date]{font-size:14px;}
+    input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;}
+    button:active{opacity:.7;}
+    img{max-width:100%;height:auto;}
+    ::-webkit-scrollbar{width:4px;} ::-webkit-scrollbar-thumb{background:${C.main};border-radius:3px;}
+
+    /* Layout */
+    .wrap{max-width:960px;margin:0 auto;padding:28px 20px;}
+    @media(max-width:768px){.wrap{padding:16px 12px;}}
+    @media(max-width:480px){.wrap{padding:12px 8px;}}
+
+    .tbl-wrap{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+    .tbl-min{min-width:460px;}
+
+    /* Grille formulaire */
+    .igrid{display:grid;grid-template-columns:1fr 1fr;}
+    @media(max-width:600px){.igrid{grid-template-columns:1fr;}}
+
+    .tgrid{display:grid;grid-template-columns:3fr minmax(80px,1fr);}
+
+    .actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:20px;}
+    @media(max-width:480px){.actions{flex-direction:column;}}
+
+    /* Cartes bons */
+    .bon-card{background:#fff;border:1px solid ${C.border};border-radius:4px;margin-bottom:12px;box-shadow:0 2px 8px rgba(107,15,26,0.06);overflow:hidden;transition:box-shadow .15s;}
+    .bon-card:hover{box-shadow:0 4px 18px rgba(107,15,26,0.14);}
+    .bon-hd{padding:12px 14px;display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;cursor:pointer;}
+    .bon-act{display:flex;gap:6px;flex-wrap:wrap;padding:10px 12px;background:${C.bg};border-top:1px solid ${C.border};align-items:center;}
+    @media(max-width:380px){.bon-act{flex-direction:column;align-items:stretch;}}
+    @media(max-width:380px){.bon-act button{width:100%;justify-content:center;}}
+
+    /* Qualit\xE9s modal */
+    .qrow{display:grid;grid-template-columns:30px 1fr 110px 30px;gap:6px;align-items:center;margin-bottom:8px;}
+    .addrow{display:grid;grid-template-columns:1fr 110px auto;gap:8px;align-items:center;}
+    @media(max-width:460px){.qrow{grid-template-columns:30px 1fr 30px;} .qrow .bc{display:none;} .addrow{grid-template-columns:1fr auto;} .addrow .bi{display:none;}}
+
+    /* Dashboard grid */
+    .dash-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;}
+    @media(max-width:800px){.dash-grid{grid-template-columns:repeat(2,1fr);}}
+    @media(max-width:380px){.dash-grid{grid-template-columns:1fr 1fr;gap:8px;}}
+
+    .dash2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;}
+    @media(max-width:600px){.dash2{grid-template-columns:1fr;}}
+
+    /* Navbar */
+    .nav-sub{color:${C.gold};font-size:9px;letter-spacing:3px;margin-top:1px;text-transform:uppercase;}
+    @media(max-width:380px){.nav-sub{display:none;}}
+
+    /* Navigation labels : cach\xE9s sur tr\xE8s petit \xE9cran */
+    .nav-label{display:inline;}
+    @media(max-width:500px){.nav-label{display:none;}}
+
+    /* Filtres liste */
+    .filter-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+    .filter-bar input{flex:1;min-width:140px;}
+    @media(max-width:480px){.filter-bar{flex-direction:column;} .filter-bar *{width:100%;}}
+
+    /* Audit */
+    .audit-row{display:flex;gap:8px;padding:8px 0;border-bottom:1px solid ${C.border};font-size:12px;align-items:flex-start;}
+
+    /* Autocomplete */
+    .sugg-box{position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid ${C.gold};border-top:none;border-radius:0 0 4px 4px;z-index:200;max-height:180px;overflow-y:auto;}
+    .sugg-item{padding:9px 12px;cursor:pointer;font-size:13px;} .sugg-item:hover{background:${C.bg};}
+
+    /* Barres stats */
+    .bar-wrap{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+    .bar-track{flex:1;height:10px;background:${C.border};border-radius:5px;overflow:hidden;}
+    .bar-fill{height:100%;border-radius:5px;background:${C.dark};}
+
+    /* Notif */
+    .notif-dot{width:8px;height:8px;background:#e74c3c;border-radius:50%;display:inline-block;margin-left:4px;animation:pulse 1.5s infinite;}
+    @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
+
+    /* Tableaux quantit\xE9s sur mobile */
+    @media(max-width:500px){
+      .qty-table .qty-label{font-size:11px;}
+      .qty-table input{font-size:12px;}
+    }
+  `;
+  const secHead = (extra = {}) => ({ background: C.dark, color: C.goldL, fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", padding: "10px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", ...extra });
+  const iLabel = { background: C.dark, color: C.goldL, fontSize: 11, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase", padding: "10px 14px", display: "flex", alignItems: "center", borderBottom: "1px solid rgba(255,255,255,0.07)" };
+  const iValue = { padding: "8px 14px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center" };
+  const inp = { width: "100%", border: "none", background: "transparent", fontFamily: "inherit", fontSize: 16, color: C.text, fontWeight: 500, outline: "none" };
+  const numInp = { width: "100%", border: "none", background: "transparent", fontFamily: "inherit", fontSize: 13, fontWeight: 600, color: C.text, textAlign: "center", outline: "none" };
+  const badgeS = { display: "inline-block", fontSize: 9, background: C.goldL, color: C.dark, padding: "1px 6px", borderRadius: 10, marginLeft: 8, fontWeight: 700, textTransform: "uppercase" };
+  const cardS = { background: C.white, border: `1px solid ${C.border}`, borderRadius: 3, boxShadow: "0 4px 20px rgba(107,15,26,0.07)", overflow: "hidden", marginBottom: 20 };
+  const qInp = { padding: "7px 10px", border: `1.5px solid ${C.border}`, borderRadius: 2, fontFamily: "inherit", fontSize: 13, outline: "none", width: "100%" };
+  const wrap = { maxWidth: 960, margin: "0 auto", padding: "clamp(8px, 3vw, 28px) clamp(8px, 4vw, 20px)" };
+  const TableHead = () => /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1.2fr", background: C.dark } }, ["Qualit\xE9", "Quantit\xE9 (Kg)", "Prix / Kg", "Montant FCFA"].map((h, i) => /* @__PURE__ */ React.createElement("div", { key: h, style: { padding: "9px 10px", color: C.goldL, fontSize: 10, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", textAlign: i === 0 ? "left" : "center" } }, h)));
+  const TRow = ({ q, i, value, onChange }) => {
+    const r = value || { qty: "", prix: "" };
+    return /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1.2fr", background: i % 2 === 0 ? C.white : C.alt, borderBottom: `1px solid ${C.border}` } }, /* @__PURE__ */ React.createElement("div", { style: { padding: "9px 12px", display: "flex", alignItems: "center" } }, /* @__PURE__ */ React.createElement("span", { style: { fontWeight: 700, color: C.dark, fontSize: 13 } }, q.label.toUpperCase(), q.badge && /* @__PURE__ */ React.createElement("span", { style: badgeS }, q.badge))), /* @__PURE__ */ React.createElement("div", { style: { padding: "6px 8px", display: "flex", alignItems: "center" } }, /* @__PURE__ */ React.createElement("input", { style: { ...numInp, border: `1px solid ${errors.rows ? C.warn : "transparent"}`, borderRadius: 2 }, type: "number", placeholder: "0", value: r.qty, onChange: (e) => onChange("qty", e.target.value) })), /* @__PURE__ */ React.createElement("div", { style: { padding: "6px 8px", display: "flex", alignItems: "center" } }, /* @__PURE__ */ React.createElement("input", { style: numInp, type: "number", placeholder: "0", value: r.prix, onChange: (e) => onChange("prix", e.target.value) })), /* @__PURE__ */ React.createElement("div", { style: { padding: "9px 10px", textAlign: "center", fontWeight: 700, color: C.dark, display: "flex", alignItems: "center", justifyContent: "center" } }, fmt(montR(r))));
+  };
+  const Totaux = ({ t, av, r, edit }) => {
+    const addPaiement = () => {
+      const p = { id: Date.now(), date: today(), montant: "", note: "" };
+      setForm((prev) => ({ ...prev, paiements: [...prev.paiements || [], p] }));
+    };
+    const updPaiement = (id, field, val) => {
+      setForm((prev) => ({ ...prev, paiements: prev.paiements.map((p) => p.id === id ? { ...p, [field]: val } : p) }));
+      setErrors((prev) => ({ ...prev, paiements: void 0 }));
+    };
+    const delPaiement = (id) => setForm((prev) => ({ ...prev, paiements: prev.paiements.filter((p) => p.id !== id) }));
+    const payerTout = () => {
+      const reste2 = t - totAv(form);
+      if (reste2 <= 0) return;
+      addPaiement();
+      setTimeout(() => setForm((prev) => {
+        const last = prev.paiements[prev.paiements.length - 1];
+        return { ...prev, paiements: prev.paiements.map((p) => p.id === last.id ? { ...p, montant: String(reste2), note: "Solde" } : p) };
+      }), 0);
+    };
+    return /* @__PURE__ */ React.createElement("div", { style: { borderTop: `3px solid ${C.dark}` } }, /* @__PURE__ */ React.createElement("div", { className: "tgrid", style: { background: C.dark, borderBottom: `1px solid ${C.border}` } }, /* @__PURE__ */ React.createElement("div", { style: { padding: "11px 16px", textAlign: "right", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: 1, color: C.goldL } }, "Somme Totale"), /* @__PURE__ */ React.createElement("div", { style: { padding: "11px 14px", textAlign: "center", fontWeight: 800, fontSize: 15, color: C.gold } }, fmt(t))), /* @__PURE__ */ React.createElement("div", { style: { background: C.bg, borderBottom: `1px solid ${C.border}` } }, /* @__PURE__ */ React.createElement("div", { style: { padding: "10px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, borderBottom: `1px solid ${C.border}` } }, /* @__PURE__ */ React.createElement("div", { style: { fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: 1, color: C.dark } }, "\u{1F4B3} Avances & Paiements"), edit && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap" } }, r > 0 && /* @__PURE__ */ React.createElement("button", { type: "button", onClick: payerTout, style: { fontSize: 10, padding: "4px 10px", background: "#1a6b3a", color: "#fff", border: "none", borderRadius: 3, cursor: "pointer", fontWeight: 700 } }, "\u2705 Solder (", fmt(r), " F)"), /* @__PURE__ */ React.createElement("button", { type: "button", onClick: addPaiement, style: { fontSize: 10, padding: "4px 10px", background: C.dark, color: C.goldL, border: "none", borderRadius: 3, cursor: "pointer", fontWeight: 700 } }, "+ Ajouter un paiement"))), (form.paiements || []).length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { padding: "12px 16px", fontSize: 12, color: C.muted, fontStyle: "italic", textAlign: "center" } }, edit ? "Cliquez + Ajouter pour enregistrer un paiement" : "Aucun paiement") : (form.paiements || []).map((p, i) => /* @__PURE__ */ React.createElement("div", { key: p.id, style: { display: "grid", gridTemplateColumns: edit ? "1fr 1fr 1fr 28px" : "1fr 1fr 1fr", gap: 6, padding: "8px 12px", borderBottom: `1px solid ${C.border}`, background: i % 2 === 0 ? C.white : C.alt, alignItems: "center" } }, edit ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("input", { type: "date", value: p.date || "", onChange: (e) => updPaiement(p.id, "date", e.target.value), style: { padding: "5px 8px", border: `1px solid ${C.border}`, borderRadius: 3, fontFamily: "inherit", fontSize: 12, width: "100%" } }), /* @__PURE__ */ React.createElement("input", { type: "number", placeholder: "Montant FCFA", value: p.montant || "", onChange: (e) => updPaiement(p.id, "montant", e.target.value), style: { padding: "5px 8px", border: `1px solid ${C.border}`, borderRadius: 3, fontFamily: "inherit", fontSize: 12, width: "100%" } }), /* @__PURE__ */ React.createElement("input", { placeholder: "Note", value: p.note || "", onChange: (e) => updPaiement(p.id, "note", e.target.value), style: { padding: "5px 8px", border: `1px solid ${C.border}`, borderRadius: 3, fontFamily: "inherit", fontSize: 12, width: "100%" } }), /* @__PURE__ */ React.createElement("button", { type: "button", onClick: () => delPaiement(p.id), style: { background: "none", border: "none", color: C.warn, cursor: "pointer", fontSize: 18, lineHeight: 1, padding: 0, textAlign: "center" } }, "\xD7")) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 12, color: C.muted } }, dFmt(p.date)), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 13, fontWeight: 700, color: "#1a6b3a" } }, fmt(p.montant), " FCFA"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 12, color: C.muted, fontStyle: "italic" } }, p.note || "\u2014")))), (form.paiements || []).length > 0 && /* @__PURE__ */ React.createElement("div", { className: "tgrid", style: { background: "#edf7ee", borderTop: `2px solid #1a6b3a` } }, /* @__PURE__ */ React.createElement("div", { style: { padding: "8px 16px", textAlign: "right", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: 1, color: "#1a6b3a" } }, "Total vers\xE9"), /* @__PURE__ */ React.createElement("div", { style: { padding: "8px 14px", textAlign: "center", fontWeight: 800, fontSize: 14, color: "#1a6b3a" } }, fmt(av), " FCFA")), errors.paiements && /* @__PURE__ */ React.createElement("div", { style: { padding: "6px 16px", fontSize: 11, color: C.warn, fontWeight: 600 } }, "\u26A0 ", errors.paiements)), /* @__PURE__ */ React.createElement("div", { className: "tgrid", style: { background: r <= 0 ? "#1a6b3a" : C.dark } }, /* @__PURE__ */ React.createElement("div", { style: { padding: "11px 16px", textAlign: "right", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: 1, color: C.goldL } }, r <= 0 ? "\u2705 Sold\xE9" : "Reste \xE0 payer"), /* @__PURE__ */ React.createElement("div", { style: { padding: "11px 14px", textAlign: "center", fontWeight: 800, fontSize: 15, color: r <= 0 ? "#a8f0c0" : r < 0 ? "#f39c12" : C.gold } }, fmt(Math.max(0, r)))));
+  };
+  const QModal = () => /* @__PURE__ */ React.createElement("div", { style: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1e3, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }, onClick: (e) => e.target === e.currentTarget && setQModal(false) }, /* @__PURE__ */ React.createElement("div", { style: { background: C.white, border: `1px solid ${C.border}`, borderRadius: 4, width: "100%", maxWidth: "min(520px,95vw)", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(107,15,26,0.3)" } }, /* @__PURE__ */ React.createElement("div", { style: { ...secHead(), position: "sticky", top: 0 } }, /* @__PURE__ */ React.createElement("span", null, "\u2699 G\xE9rer les qualit\xE9s"), /* @__PURE__ */ React.createElement("button", { onClick: () => setQModal(false), style: { background: "none", border: "none", color: C.goldL, fontSize: 22, cursor: "pointer", fontWeight: "bold", lineHeight: 1 } }, "\xD7")), /* @__PURE__ */ React.createElement("div", { style: { padding: 16 } }, editQ.map((q, i) => /* @__PURE__ */ React.createElement("div", { key: q.key, className: "qrow" }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 2 } }, [[-1, "\u25B2"], [1, "\u25BC"]].map(([d, l]) => /* @__PURE__ */ React.createElement("button", { key: d, onClick: () => moveQ(i, d), disabled: d === -1 && i === 0 || d === 1 && i === editQ.length - 1, style: { background: "none", border: `1px solid ${C.border}`, cursor: "pointer", fontSize: 10, color: C.dark, width: 26, height: 20, borderRadius: 2, display: "flex", alignItems: "center", justifyContent: "center", opacity: d === -1 && i === 0 || d === 1 && i === editQ.length - 1 ? 0.25 : 1 } }, l))), /* @__PURE__ */ React.createElement("input", { style: qInp, value: q.label, onChange: (e) => updQ(q.key, "label", e.target.value), placeholder: "Nom" }), /* @__PURE__ */ React.createElement("input", { className: "bc", style: { ...qInp, fontSize: 12, color: C.muted }, value: q.badge || "", onChange: (e) => updQ(q.key, "badge", e.target.value), placeholder: "Badge" }), /* @__PURE__ */ React.createElement("button", { onClick: () => delQ(q.key), style: { width: 30, height: 30, border: `1.5px solid ${C.border}`, background: C.warnBg, color: C.warn, borderRadius: 2, cursor: "pointer", fontSize: 17, fontWeight: "bold", display: "flex", alignItems: "center", justifyContent: "center" } }, "\xD7"))), /* @__PURE__ */ React.createElement("div", { style: { marginTop: 16, padding: 14, background: C.bg, borderRadius: 2, border: `1.5px dashed ${C.gold}` } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: C.dark, textTransform: "uppercase", marginBottom: 10 } }, "+ Nouvelle qualit\xE9"), /* @__PURE__ */ React.createElement("div", { className: "addrow" }, /* @__PURE__ */ React.createElement("input", { style: { ...qInp, background: C.white }, value: newLabel, onChange: (e) => setNewLabel(e.target.value), onKeyDown: (e) => e.key === "Enter" && addQ(), placeholder: "Ex : Florentine..." }), /* @__PURE__ */ React.createElement("input", { className: "bi", style: { ...qInp, fontSize: 12, background: C.white }, value: newBadge, onChange: (e) => setNewBadge(e.target.value), onKeyDown: (e) => e.key === "Enter" && addQ(), placeholder: "Badge (opt.)" }), /* @__PURE__ */ React.createElement(Btn, { v: "primary", onClick: addQ, sm: true }, "+ Ajouter"))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.border}` } }, /* @__PURE__ */ React.createElement(Btn, { v: "ghost", onClick: () => setQModal(false), sm: true }, "Annuler"), /* @__PURE__ */ React.createElement(Btn, { v: "primary", onClick: applyQ, sm: true }, "\u2713 Appliquer (", editQ.length, ")")))));
+  const DeleteModal = () => {
+    if (!deleteModal) return null;
+    const bon = bons.find((b) => b.id === deleteModal);
+    return /* @__PURE__ */ React.createElement("div", { style: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 3e3, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 } }, /* @__PURE__ */ React.createElement("div", { style: { background: C.white, borderRadius: 6, width: "100%", maxWidth: "min(380px,95vw)", boxShadow: "0 20px 60px rgba(0,0,0,0.4)", overflow: "hidden" } }, /* @__PURE__ */ React.createElement("div", { style: { background: C.warn, padding: "20px 24px", textAlign: "center" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 40, marginBottom: 8 } }, "\u{1F5D1}\uFE0F"), /* @__PURE__ */ React.createElement("div", { style: { color: "#fff", fontWeight: 800, fontSize: 18, fontFamily: "Georgia,serif" } }, "Supprimer ce bon ?")), /* @__PURE__ */ React.createElement("div", { style: { padding: "16px 24px", background: C.bg, borderBottom: `1px solid ${C.border}`, textAlign: "center" } }, /* @__PURE__ */ React.createElement("div", { style: { fontWeight: 700, color: C.dark, fontSize: 15 } }, (bon == null ? void 0 : bon.fournisseur) || "\u2014"), (bon == null ? void 0 : bon.numero) && /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: C.muted, marginTop: 4 } }, bon.numero, " \xB7 ", dFmt(bon == null ? void 0 : bon.date)), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, color: C.warn, marginTop: 8, fontWeight: 600 } }, "Cette action est irr\xE9versible.")), /* @__PURE__ */ React.createElement("div", { style: { padding: "16px 24px", display: "flex", gap: 10 } }, /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        onClick: () => setDeleteModal(null),
+        style: { flex: 1, padding: "12px", background: "transparent", color: C.muted, border: `1.5px solid ${C.border}`, borderRadius: 4, fontFamily: "inherit", fontSize: 13, fontWeight: 600, cursor: "pointer" }
+      },
+      "Annuler"
+    ), /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        onClick: () => handleDelete(deleteModal),
+        style: { flex: 1, padding: "12px", background: C.warn, color: "#fff", border: "none", borderRadius: 4, fontFamily: "inherit", fontSize: 13, fontWeight: 700, cursor: "pointer" }
+      },
+      "\u{1F5D1} Supprimer"
+    ))));
+  };
+  const PrintModal = () => {
+    if (!printModal) return null;
+    const t = totQ(printModal.qualities || DEF_Q, printModal.rows);
+    const av = totAv(printModal);
+    const paiements = printModal.paiements || [];
+    const reste2 = t - av;
+    return /* @__PURE__ */ React.createElement("div", { style: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 3e3, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 } }, /* @__PURE__ */ React.createElement("div", { style: { background: C.white, borderRadius: 6, width: "100%", maxWidth: "min(400px,95vw)", boxShadow: "0 24px 80px rgba(0,0,0,0.4)", overflow: "hidden" } }, /* @__PURE__ */ React.createElement("div", { style: { background: "#1a6b3a", padding: "28px 24px", textAlign: "center" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 52, marginBottom: 10 } }, "\u2705"), /* @__PURE__ */ React.createElement("div", { style: { color: "#fff", fontWeight: 800, fontSize: 22, fontFamily: "Georgia,serif", letterSpacing: 1 } }, "Bon enregistr\xE9 !"), printModal.numero && /* @__PURE__ */ React.createElement("div", { style: { display: "inline-block", marginTop: 8, background: "rgba(255,255,255,0.2)", color: "#fff", fontSize: 13, fontWeight: 700, padding: "4px 14px", borderRadius: 20, letterSpacing: 1 } }, printModal.numero)), /* @__PURE__ */ React.createElement("div", { style: { padding: "18px 24px", background: C.bg, borderBottom: `1px solid ${C.border}` } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 10 } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 12, color: C.muted, textTransform: "uppercase", letterSpacing: 1 } }, "Fournisseur"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 14, fontWeight: 700, color: C.dark } }, printModal.fournisseur || "\u2014")), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: av > 0 ? 10 : 0 } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 12, color: C.muted, textTransform: "uppercase", letterSpacing: 1 } }, "Total"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 16, fontWeight: 800, color: C.dark } }, fmt(t), " ", /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11 } }, "FCFA"))), av > 0 && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 10 } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 12, color: C.muted, textTransform: "uppercase", letterSpacing: 1 } }, "Avance"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 14, fontWeight: 600, color: C.dark } }, fmt(av), " ", /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11 } }, "FCFA"))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", padding: "10px 0", borderTop: `1px dashed ${C.border}` } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 12, color: C.muted, textTransform: "uppercase", letterSpacing: 1 } }, "Reste \xE0 payer"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 15, fontWeight: 800, color: reste2 > 0 ? C.warn : "#1a6b3a" } }, fmt(reste2), " ", /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11 } }, "FCFA"))))), /* @__PURE__ */ React.createElement("div", { style: { padding: "20px 24px", display: "flex", flexDirection: "column", gap: 12 } }, /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        onClick: () => {
+          generateWordDoc(printModal);
+          setPrintModal(null);
+          setSaved("");
+          setView("list");
+        },
+        style: { width: "100%", padding: "14px", background: "#1F4E79", color: "#fff", border: "none", borderRadius: 4, fontFamily: "inherit", fontSize: 14, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, letterSpacing: 0.5 }
+      },
+      /* @__PURE__ */ React.createElement("span", { style: { fontSize: 20 } }, "\u{1F4C4}"),
+      " Imprimer le bon (Word)"
+    ), /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        onClick: () => {
+          setPrintModal(null);
+          setSaved("");
+          setView("list");
+        },
+        style: { width: "100%", padding: "12px", background: "transparent", color: C.muted, border: `1.5px solid ${C.border}`, borderRadius: 4, fontFamily: "inherit", fontSize: 13, fontWeight: 600, cursor: "pointer", letterSpacing: 0.5 }
+      },
+      "Continuer sans imprimer \u2192"
+    ))));
+  };
+  const monthlyData = (() => {
+    const months = [];
+    const now2 = /* @__PURE__ */ new Date();
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now2.getFullYear(), now2.getMonth() - i, 1);
+      const key = d.toISOString().slice(0, 7);
+      const label = d.toLocaleDateString("fr-FR", { month: "short", year: "2-digit" });
+      const monthBons = bons.filter((b) => {
+        var _a;
+        return (_a = b.date) == null ? void 0 : _a.startsWith(key);
+      });
+      const total2 = monthBons.reduce((s, b) => s + totQ(b.qualities || DEF_Q, b.rows), 0);
+      const encaisse = monthBons.reduce((s, b) => s + (totAv(b) || 0), 0);
+      months.push({ label, total: total2, encaisse, count: monthBons.length });
+    }
+    return months;
+  })();
+  const maxMonthVal = Math.max(...monthlyData.map((m) => m.total), 1);
+  const Dashboard = () => {
+    const maxVol = Math.max(...volParQ.map((v) => v.vol), 1);
+    const nowCi = /* @__PURE__ */ new Date();
+    const heureCi = nowCi.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Africa/Abidjan" });
+    const dateCi = nowCi.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "Africa/Abidjan" });
+    return /* @__PURE__ */ React.createElement("div", { style: wrap }, /* @__PURE__ */ React.createElement("div", { style: { marginBottom: 20, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "Georgia,serif", fontSize: "clamp(18px,5vw,26px)", color: C.dark, fontWeight: "bold" } }, "Tableau de bord"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.muted, letterSpacing: 2, textTransform: "uppercase", marginTop: 4 } }, dateCi), /* @__PURE__ */ React.createElement("div", { style: { display: "inline-flex", alignItems: "center", gap: 8, marginTop: 6, background: C.dark, color: C.goldL, padding: "4px 12px", borderRadius: 20 } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 13 } }, "\u{1F550}"), /* @__PURE__ */ React.createElement("span", { style: { fontWeight: 700, fontSize: 13, letterSpacing: 1 } }, heureCi), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, opacity: 0.7 } }, "Abidjan"))), /* @__PURE__ */ React.createElement(Btn, { v: "primary", onClick: handleNew }, "+ Nouveau bon")), notifications.map((n) => /* @__PURE__ */ React.createElement(Alert, { key: n.id, type: "warn", onClose: () => setNotifications((p) => p.filter((x) => x.id !== n.id)) }, "\u26A0 ", n.msg)), /* @__PURE__ */ React.createElement("div", { className: "dash-grid" }, [
+      { label: "Bons ce mois", val: bonsMonth.length, icon: "\u{1F4CB}", sub: `${bons.length} total` },
+      { label: "Volume encaiss\xE9", val: fmt(totalMonth) + " F", icon: "\u{1F4B0}", sub: "ce mois" },
+      { label: "Restes \xE0 payer", val: fmt(totalReste) + " F", icon: "\u23F3", sub: "tous bons", alert: totalReste > 0 },
+      { label: "Volume ignames", val: fmt(Math.round(totalVol)) + " Kg", icon: "\u{1F33F}", sub: "total cumul\xE9" }
+    ].map((k) => /* @__PURE__ */ React.createElement("div", { key: k.label, style: { background: C.white, border: `1px solid ${k.alert ? C.warn : C.border}`, borderRadius: 3, padding: "clamp(10px,2vw,16px)", boxShadow: "0 2px 10px rgba(107,15,26,0.07)", borderLeft: `4px solid ${k.alert ? C.warn : C.dark}` } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 24, marginBottom: 6 } }, k.icon), /* @__PURE__ */ React.createElement("div", { style: { fontWeight: 800, fontSize: "clamp(14px,3vw,18px)", color: k.alert ? C.warn : C.dark, lineHeight: 1.2 } }, k.val), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.muted, marginTop: 4, textTransform: "uppercase", letterSpacing: 1 } }, k.label), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.muted, marginTop: 2 } }, k.sub)))), /* @__PURE__ */ React.createElement("div", { className: "dash2" }, /* @__PURE__ */ React.createElement("div", { style: cardS }, /* @__PURE__ */ React.createElement("div", { style: secHead() }, "\u{1F3C6} Top fournisseurs"), /* @__PURE__ */ React.createElement("div", { style: { padding: 16 } }, topFourns.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { color: C.muted, fontSize: 13, textAlign: "center", padding: "20px 0" } }, "Aucun bon enregistr\xE9") : topFourns.map(([nom, count], i) => /* @__PURE__ */ React.createElement("div", { key: nom, className: "bar-wrap" }, /* @__PURE__ */ React.createElement("div", { style: { width: 20, fontSize: 11, fontWeight: 700, color: C.muted, flexShrink: 0 } }, "#", i + 1), /* @__PURE__ */ React.createElement("div", { style: { flex: 1, minWidth: 0 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: C.dark, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, nom), /* @__PURE__ */ React.createElement("div", { className: "bar-track" }, /* @__PURE__ */ React.createElement("div", { className: "bar-fill", style: { width: `${count / topFourns[0][1] * 100}%` } }))), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: C.dark, flexShrink: 0, marginLeft: 8 } }, count, " bon", count > 1 ? "s" : ""))))), /* @__PURE__ */ React.createElement("div", { style: cardS }, /* @__PURE__ */ React.createElement("div", { style: secHead() }, "\u{1F33F} Volumes par qualit\xE9"), /* @__PURE__ */ React.createElement("div", { style: { padding: 16 } }, volParQ.map((q) => /* @__PURE__ */ React.createElement("div", { key: q.label, className: "bar-wrap" }, /* @__PURE__ */ React.createElement("div", { style: { width: 80, fontSize: 12, fontWeight: 600, color: C.dark, flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, q.label), /* @__PURE__ */ React.createElement("div", { className: "bar-track" }, /* @__PURE__ */ React.createElement("div", { className: "bar-fill", style: { width: `${q.vol / maxVol * 100}%`, background: C.main } })), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: C.dark, flexShrink: 0, marginLeft: 8 } }, fmt(Math.round(q.vol)), " Kg")))))), /* @__PURE__ */ React.createElement("div", { style: { ...cardS, marginBottom: 20 } }, /* @__PURE__ */ React.createElement("div", { style: secHead() }, "\u{1F4C8} \xC9volution mensuelle (6 derniers mois)"), /* @__PURE__ */ React.createElement("div", { style: { padding: "20px 16px" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "flex-end", gap: "clamp(4px,2vw,12px)", height: 140, marginBottom: 8 } }, monthlyData.map((m, i) => /* @__PURE__ */ React.createElement("div", { key: i, style: { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 9, fontWeight: 700, color: C.dark, textAlign: "center", whiteSpace: "nowrap" } }, m.total > 0 ? fmt(Math.round(m.total / 1e3)) + "k" : ""), /* @__PURE__ */ React.createElement("div", { style: { width: "100%", display: "flex", gap: 2, alignItems: "flex-end", height: 110 } }, /* @__PURE__ */ React.createElement("div", { style: {
+      flex: 1,
+      background: `linear-gradient(to top, ${C.dark}, ${C.main})`,
+      borderRadius: "3px 3px 0 0",
+      height: `${Math.max(m.total / maxMonthVal * 100, m.total > 0 ? 4 : 0)}%`,
+      transition: "height .4s",
+      position: "relative"
+    } }, m.count > 0 && /* @__PURE__ */ React.createElement("div", { style: { position: "absolute", top: -16, left: "50%", transform: "translateX(-50%)", fontSize: 9, fontWeight: 700, color: C.muted, whiteSpace: "nowrap" } }, m.count, "b")), /* @__PURE__ */ React.createElement("div", { style: {
+      flex: 1,
+      background: `linear-gradient(to top, #1a6b3a, #27ae60)`,
+      borderRadius: "3px 3px 0 0",
+      height: `${Math.max(m.encaisse / maxMonthVal * 100, m.encaisse > 0 ? 3 : 0)}%`,
+      transition: "height .4s",
+      opacity: 0.85
+    } }))))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: "clamp(4px,2vw,12px)" } }, monthlyData.map((m, i) => /* @__PURE__ */ React.createElement("div", { key: i, style: { flex: 1, textAlign: "center", fontSize: 10, color: C.muted, fontWeight: 600 } }, m.label))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 16, justifyContent: "center", marginTop: 12 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: C.muted } }, /* @__PURE__ */ React.createElement("div", { style: { width: 12, height: 12, borderRadius: 2, background: C.dark } }), " Total facturation"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: C.muted } }, /* @__PURE__ */ React.createElement("div", { style: { width: 12, height: 12, borderRadius: 2, background: "#1a6b3a" } }), " Avances encaiss\xE9es")))), /* @__PURE__ */ React.createElement("div", { style: cardS }, /* @__PURE__ */ React.createElement("div", { style: secHead() }, /* @__PURE__ */ React.createElement("span", null, "\u{1F4CB} Derniers bons enregistr\xE9s"), /* @__PURE__ */ React.createElement(Btn, { v: "ghost", sm: true, onClick: () => setView("list") }, "Voir tout \u2192")), bons.slice(0, 5).map((b) => {
+      const qs = b.qualities || DEF_Q, t = totQ(qs, b.rows), av = totAv(b) || 0, r = t - av;
+      return /* @__PURE__ */ React.createElement("div", { key: b.id, style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px", borderBottom: `1px solid ${C.border}`, gap: 10, flexWrap: "wrap" } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("span", { style: { fontWeight: 700, color: C.dark, fontSize: 14 } }, b.fournisseur || "\u2014"), b.numero && /* @__PURE__ */ React.createElement("span", { style: { marginLeft: 8, fontSize: 11, color: C.muted } }, b.numero), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.muted, marginTop: 2 } }, dFmt(b.date), " \xB7 ", b.convoyeur || "\u2014")), /* @__PURE__ */ React.createElement("div", { style: { textAlign: "right" } }, /* @__PURE__ */ React.createElement("div", { style: { fontWeight: 800, color: C.dark, fontSize: 14 } }, fmt(t), " FCFA"), r > 0 && /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.warn } }, "Reste : ", fmt(r), " FCFA")));
+    }), bons.length === 0 && /* @__PURE__ */ React.createElement("div", { style: { padding: "24px", textAlign: "center", color: C.muted, fontSize: 13 } }, "Aucun bon enregistr\xE9 pour le moment.")));
+  };
+  const FormView = () => /* @__PURE__ */ React.createElement("div", { style: wrap }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 14, marginBottom: 20, flexWrap: "wrap" } }, /* @__PURE__ */ React.createElement(Btn, { v: "ghost", onClick: () => {
+    setView("list");
+    setEditId(null);
+  } }, "\u2190 Retour"), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "Georgia,serif", fontSize: "clamp(17px,4vw,24px)", color: C.dark, fontWeight: "bold" } }, editId ? "\u270F\uFE0F Modifier le bon" : "\u2795 Nouveau bon"), form.numero && /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: C.gold, fontWeight: 700, marginTop: 2 } }, form.numero))), saved && /* @__PURE__ */ React.createElement(Alert, { type: "success" }, saved), errors.rows && /* @__PURE__ */ React.createElement(Alert, { type: "error" }, "\u26A0 ", errors.rows), /* @__PURE__ */ React.createElement("div", { style: cardS }, /* @__PURE__ */ React.createElement("div", { style: secHead() }, "Informations g\xE9n\xE9rales"), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr" } }, [
+    { key: "date", label: "Date *", type: "date", req: true },
+    { key: "_fourn", label: "Fournisseur *", type: "fourn", req: true },
+    { key: "telephone", label: "T\xE9l\xE9phone *", type: "tel", req: true },
+    { key: "convoyeur", label: "Convoyeur", type: "text", req: false },
+    { key: "chauffeur", label: "Chauffeur", type: "text", req: false },
+    { key: "matricule", label: "N\xB0 Matricule camion", type: "text", req: false }
+  ].map(({ key, label, type, req }) => /* @__PURE__ */ React.createElement("div", { key, style: { borderBottom: `1px solid ${C.border}`, borderRight: `1px solid ${C.border}` } }, /* @__PURE__ */ React.createElement("div", { style: iLabel }, label), /* @__PURE__ */ React.createElement("div", { style: { padding: "8px 14px", position: "relative" } }, type === "date" && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" } }, /* @__PURE__ */ React.createElement("input", { type: "date", style: { ...inp, padding: "2px 0", flex: 1 }, value: form.date || "", onChange: (e) => {
+    setForm((p) => ({ ...p, date: e.target.value }));
+    setErrors((p) => ({ ...p, date: void 0 }));
+  } }), !editId && /* @__PURE__ */ React.createElement("button", { type: "button", onClick: () => setForm((p) => ({ ...p, date: today() })), style: { fontSize: 10, background: C.goldL, color: C.dark, border: "none", borderRadius: 2, padding: "3px 8px", cursor: "pointer", fontWeight: 700, whiteSpace: "nowrap" } }, "\u{1F4C5} Aujourd'hui")), type === "fourn" && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("input", { style: inp, value: form.fournisseur || "", onChange: (e) => handleFournChange(e.target.value), onBlur: () => setTimeout(() => setFournSugg([]), 150), placeholder: "Nom du fournisseur" }), fournSugg.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "sugg-box" }, fournSugg.map((f) => /* @__PURE__ */ React.createElement("div", { key: f.id, className: "sugg-item", onClick: () => selectFourn(f) }, /* @__PURE__ */ React.createElement("strong", null, f.nom), " ", /* @__PURE__ */ React.createElement("span", { style: { color: C.muted } }, "\u{1F4DE} ", f.telephone || "\u2014"))))), type !== "date" && type !== "fourn" && /* @__PURE__ */ React.createElement("input", { style: inp, type, value: form[key] || "", onChange: (e) => {
+    setForm((p) => ({ ...p, [key]: e.target.value }));
+    setErrors((p) => ({ ...p, [key]: void 0 }));
+  }, placeholder: label }), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.warn, height: 16, marginTop: 2, lineHeight: "16px" } }, key === "date" && errors.date ? "\u26A0 " + errors.date : key === "_fourn" && errors.fournisseur ? "\u26A0 " + errors.fournisseur : errors[key] ? "\u26A0 " + errors[key] : "")))))), /* @__PURE__ */ React.createElement("div", { style: cardS }, /* @__PURE__ */ React.createElement("div", { style: secHead() }, /* @__PURE__ */ React.createElement("span", null, "Qualit\xE9s & Quantit\xE9s"), /* @__PURE__ */ React.createElement("button", { onClick: openQ, style: { background: "rgba(212,168,67,0.15)", border: `1px solid ${C.gold}`, color: C.gold, padding: "5px 12px", fontSize: 10, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", cursor: "pointer", borderRadius: 2 } }, "\u2699 G\xE9rer")), /* @__PURE__ */ React.createElement("div", { className: "tbl-wrap" }, /* @__PURE__ */ React.createElement("div", { className: "tbl-min" }, TableHead(), (form.qualities || []).map((q, i) => TRow({ key: q.key, q, i, value: form.rows[q.key], onChange: (f, v) => {
+    setForm((p) => ({ ...p, rows: { ...p.rows, [q.key]: { ...p.rows[q.key], [f]: v } } }));
+    setErrors((p) => ({ ...p, rows: void 0 }));
+  } })))), Totaux({ t: total, av: avance, r: reste, edit: true }), /* @__PURE__ */ React.createElement("div", { style: { textAlign: "center", padding: "8px", fontSize: 12, color: C.muted, fontStyle: "italic", borderTop: `1px solid ${C.border}` } }, "Ladite avance re\xE7ue par le convoyeur")), /* @__PURE__ */ React.createElement("div", { className: "actions" }, /* @__PURE__ */ React.createElement(Btn, { v: "primary", onClick: handleSave }, editId ? "\u{1F4BE} Enregistrer les modifications" : "\u{1F4BE} Enregistrer")));
+  const ListView = () => /* @__PURE__ */ React.createElement("div", { style: wrap }, /* @__PURE__ */ React.createElement("div", { style: { marginBottom: 20, display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 12 } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "Georgia,serif", fontSize: "clamp(18px,5vw,26px)", color: C.dark, fontWeight: "bold" } }, "Bons de D\xE9chargement"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.muted, letterSpacing: 2, textTransform: "uppercase", marginTop: 4 } }, bons.length, " bon", bons.length > 1 ? "s" : "", " \xB7 ", filtered.length, " affich\xE9", filtered.length > 1 ? "s" : "")), /* @__PURE__ */ React.createElement(Btn, { v: "primary", onClick: handleNew }, "+ Nouveau bon")), saved && /* @__PURE__ */ React.createElement(Alert, { type: "success", onClose: () => setSaved("") }, saved), /* @__PURE__ */ React.createElement("div", { style: { ...cardS, padding: 14, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" } }, /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      style: { flex: 1, minWidth: 180, padding: "8px 12px", border: `1.5px solid ${C.border}`, borderRadius: 2, fontFamily: "inherit", fontSize: 13, outline: "none", background: C.white },
+      placeholder: "\u{1F50D} Rechercher...",
+      value: search,
+      onChange: (e) => setSearch(e.target.value)
+    }
+  ), /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      type: "date",
+      style: { padding: "8px 12px", border: `1.5px solid ${C.border}`, borderRadius: 2, fontFamily: "inherit", fontSize: 13, outline: "none", background: C.white },
+      value: filterDate,
+      onChange: (e) => setFilterDate(e.target.value)
+    }
+  ), ["", "nonsolde", "solde"].map((s) => /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      key: s,
+      onClick: () => setFilterStatus(s),
+      style: {
+        padding: "7px 12px",
+        fontFamily: "inherit",
+        fontSize: 11,
+        fontWeight: 700,
+        cursor: "pointer",
+        borderRadius: 2,
+        border: "none",
+        background: filterStatus === s ? s === "solde" ? "#1a6b3a" : s === "nonsolde" ? C.warn : C.dark : "rgba(107,15,26,0.08)",
+        color: filterStatus === s ? "#fff" : s === "solde" ? "#1a6b3a" : s === "nonsolde" ? C.warn : C.muted,
+        whiteSpace: "nowrap"
+      }
+    },
+    s === "" ? "Tous" : s === "solde" ? "\u2705 Sold\xE9s" : "\u23F3 Non sold\xE9s"
+  )), (search || filterDate || filterStatus) && /* @__PURE__ */ React.createElement(Btn, { v: "ghost", sm: true, onClick: () => {
+    setSearch("");
+    setFilterDate("");
+    setFilterStatus("");
+  } }, "\u2715 Effacer"), /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      onClick: () => exportExcel(filtered),
+      disabled: !filtered.length,
+      style: { padding: "8px 14px", background: "#217346", color: "#fff", border: "none", borderRadius: 2, fontFamily: "inherit", fontSize: 11, fontWeight: 700, cursor: filtered.length ? "pointer" : "not-allowed", opacity: filtered.length ? 1 : 0.4, whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 6 }
+    },
+    "\u{1F4E5} Export Excel"
+  )), filtered.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { textAlign: "center", padding: "60px 20px" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 44, marginBottom: 12 } }, "\u{1F4CB}"), /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "Georgia,serif", fontSize: 18, color: "#ccc" } }, bons.length === 0 ? "Aucun bon enregistr\xE9" : "Aucun r\xE9sultat"), bons.length === 0 && /* @__PURE__ */ React.createElement("div", { style: { marginTop: 16 } }, /* @__PURE__ */ React.createElement(Btn, { v: "primary", onClick: handleNew }, "+ Cr\xE9er le premier bon"))) : filtered.map((bon) => {
+    const qs = bon.qualities || DEF_Q, t = totQ(qs, bon.rows), av = totAv(bon), r = t - av;
+    return /* @__PURE__ */ React.createElement("div", { key: bon.id, className: "bon-card" }, /* @__PURE__ */ React.createElement("div", { className: "bon-hd", onClick: () => setShowAudit(showAudit === bon.id ? null : bon.id) }, /* @__PURE__ */ React.createElement("div", { style: { flex: 1, minWidth: 0 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 5, flexWrap: "wrap" } }, /* @__PURE__ */ React.createElement("span", { style: { fontFamily: "Georgia,serif", fontSize: 15, color: C.dark, fontWeight: "bold" } }, bon.fournisseur || "Sans nom"), bon.numero && /* @__PURE__ */ React.createElement(Badge, { color: C.dark, bg: C.goldL }, bon.numero), /* @__PURE__ */ React.createElement(Badge, { color: C.dark, bg: C.bg }, dFmt(bon.date)), bon.updatedAt && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, color: C.muted, fontStyle: "italic" } }, "\u270F modifi\xE9")), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: C.muted, display: "flex", flexWrap: "wrap", gap: "3px 12px" } }, /* @__PURE__ */ React.createElement("span", null, "\u{1F4DE} ", bon.telephone || "\u2014"), /* @__PURE__ */ React.createElement("span", null, "\u{1F69B} ", bon.convoyeur || "\u2014"), bon.matricule && /* @__PURE__ */ React.createElement("span", null, "\u{1F697} ", bon.matricule))), /* @__PURE__ */ React.createElement("div", { style: { textAlign: "right", flexShrink: 0 } }, /* @__PURE__ */ React.createElement("div", { style: { fontWeight: 800, fontSize: 16, color: C.dark } }, fmt(t), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, fontWeight: 500, marginLeft: 3 } }, "FCFA")), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: r > 0 ? C.warn : C.success, fontWeight: 600 } }, r > 0 ? `\u23F3 Reste : ${fmt(r)} FCFA` : "\u2705 Sold\xE9"))), showAudit === bon.id && (bon.audit || []).length > 0 && /* @__PURE__ */ React.createElement("div", { style: { padding: "10px 16px", background: "#fafafa", borderTop: `1px solid ${C.border}` } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: C.dark, letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 } }, "\u{1F4DC} Historique"), (bon.audit || []).map((a, i) => /* @__PURE__ */ React.createElement("div", { key: i, className: "audit-row" }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 18 } }, a.action === "Cr\xE9ation" ? "\u{1F7E2}" : "\u{1F535}"), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("strong", { style: { color: C.dark } }, a.action), " par ", /* @__PURE__ */ React.createElement("strong", null, a.by), /* @__PURE__ */ React.createElement("div", { style: { color: C.muted } }, new Date(a.at).toLocaleString("fr-FR")))))), /* @__PURE__ */ React.createElement("div", { className: "bon-act" }, /* @__PURE__ */ React.createElement(Btn, { v: "outline", sm: true, onClick: () => handleEdit(bon) }, "\u270F\uFE0F Modifier"), /* @__PURE__ */ React.createElement(Btn, { v: "word", sm: true, onClick: () => generateWordDoc(bon) }, "\u{1F4C4} Word"), /* @__PURE__ */ React.createElement("div", { style: { flex: 1 } }), /* @__PURE__ */ React.createElement(Btn, { v: "danger", sm: true, onClick: () => setDeleteModal(bon.id) }, "\u{1F5D1} Supprimer")));
+  }));
+  const FournisseursView = () => /* @__PURE__ */ React.createElement("div", { style: wrap }, /* @__PURE__ */ React.createElement("div", { style: { marginBottom: 20 } }, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "Georgia,serif", fontSize: "clamp(17px,4vw,24px)", color: C.dark, fontWeight: "bold" } }, "Annuaire Fournisseurs"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.muted, letterSpacing: 2, textTransform: "uppercase", marginTop: 4 } }, fournisseurs.length, " fournisseur", fournisseurs.length > 1 ? "s" : "")), fournisseurs.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { textAlign: "center", padding: "50px", color: C.muted, fontSize: 13 } }, "Les fournisseurs s'ajoutent automatiquement lors de l'enregistrement des bons.") : /* @__PURE__ */ React.createElement("div", { style: cardS }, fournisseurs.map((f, i) => {
+    var _a;
+    return /* @__PURE__ */ React.createElement("div", { key: f.id, style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderBottom: i < fournisseurs.length - 1 ? `1px solid ${C.border}` : "none", flexWrap: "wrap", gap: 8 } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontWeight: 700, color: C.dark, fontSize: 14 } }, f.nom), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: C.muted } }, "\u{1F4DE} ", f.telephone || "\u2014", " \xB7 \u{1F69B} ", f.convoyeur || "\u2014")), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } }, /* @__PURE__ */ React.createElement(Badge, { color: C.dark, bg: C.goldL }, bons.filter((b) => b.fournisseur === f.nom).length, " bon", bons.filter((b) => b.fournisseur === f.nom).length > 1 ? "s" : ""), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: C.muted } }, "Ajout\xE9 le ", dFmt((_a = f.addedAt) == null ? void 0 : _a.split("T")[0]))));
+  })));
+  const RapportView = () => {
+    const [mois, setMois] = React.useState((/* @__PURE__ */ new Date()).toLocaleDateString("fr-CA", { timeZone: "Africa/Abidjan" }).slice(0, 7));
+    const bonsMois = bons.filter((b) => {
+      var _a;
+      return (_a = b.date) == null ? void 0 : _a.startsWith(mois);
+    });
+    const totalFacture = bonsMois.reduce((s, b) => s + totQ(b.qualities || DEF_Q, b.rows), 0);
+    const totalEncaisse = bonsMois.reduce((s, b) => s + totAv(b), 0);
+    const totalReste2 = totalFacture - totalEncaisse;
+    const nomMois = (/* @__PURE__ */ new Date(mois + "-15")).toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+    const printRapport = () => {
+      const w = window.open("", "_blank");
+      const rows = bonsMois.map((b) => {
+        const t = totQ(b.qualities || DEF_Q, b.rows), av = totAv(b);
+        return `<tr><td>${b.numero || "\u2014"}</td><td>${dFmt(b.date)}</td><td><strong>${b.fournisseur || "\u2014"}</strong></td><td>${b.convoyeur || "\u2014"}</td><td style="text-align:right">${fmt(t)} F</td><td style="text-align:right">${fmt(av)} F</td><td style="text-align:right;color:${t - av > 0 ? "#c0392b" : "#1a6b3a"};font-weight:700">${fmt(t - av)} F</td></tr>`;
+      }).join("");
+      w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Rapport ${nomMois}</title>
+      <style>body{font-family:Georgia,serif;margin:30px;color:#333}h1{color:#6B0F1A;font-size:22px}h2{color:#6B0F1A;font-size:15px;margin-top:20px}
+      table{width:100%;border-collapse:collapse;margin-top:12px;font-size:12px}th{background:#6B0F1A;color:#F0DFA0;padding:8px 10px;text-align:left}
+      td{padding:7px 10px;border-bottom:1px solid #D4B8B0}tr:nth-child(even){background:#FDF0ED}
+      .total-row{background:#6B0F1A!important;color:#F0DFA0;font-weight:700}
+      .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:20px 0}
+      .kpi{background:#F8EEE8;border:1px solid #D4B8B0;border-left:4px solid #6B0F1A;padding:14px;border-radius:4px}
+      .kpi-val{font-size:20px;font-weight:800;color:#6B0F1A}.kpi-label{font-size:11px;color:#8a6060;text-transform:uppercase;letter-spacing:1px;margin-top:4px}
+      @media print{button{display:none}}</style></head><body>
+      <div style="text-align:center;margin-bottom:24px">
+        <div style="font-size:28px;font-weight:800;color:#6B0F1A;letter-spacing:3px">SIBEE</div>
+        <div style="font-size:11px;color:#8a6060;letter-spacing:3px;text-transform:uppercase">Import-Export \xB7 Commerce de produits agricoles</div>
+        <h1 style="margin-top:16px">Rapport mensuel \u2014 ${nomMois}</h1>
+        <div style="font-size:12px;color:#8a6060">G\xE9n\xE9r\xE9 le ${(/* @__PURE__ */ new Date()).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "Africa/Abidjan" })}</div>
+      </div>
+      <div class="kpis">
+        <div class="kpi"><div class="kpi-val">${bonsMois.length}</div><div class="kpi-label">Bons \xE9mis</div></div>
+        <div class="kpi"><div class="kpi-val">${fmt(totalFacture)} F</div><div class="kpi-label">Total factur\xE9</div></div>
+        <div class="kpi"><div class="kpi-val">${fmt(totalReste2)} F</div><div class="kpi-label">Reste \xE0 encaisser</div></div>
+      </div>
+      <h2>D\xE9tail des bons</h2>
+      <table><thead><tr><th>N\xB0 Bon</th><th>Date</th><th>Fournisseur</th><th>Convoyeur</th><th>Total</th><th>Encaiss\xE9</th><th>Reste</th></tr></thead>
+      <tbody>${rows}<tr class="total-row"><td colspan="4">TOTAUX</td><td style="text-align:right">${fmt(totalFacture)} F</td><td style="text-align:right">${fmt(totalEncaisse)} F</td><td style="text-align:right">${fmt(totalReste2)} F</td></tr></tbody></table>
+      <div style="margin-top:40px;display:grid;grid-template-columns:1fr 1fr;gap:40px;font-size:12px">
+        <div style="border-top:2px solid #6B0F1A;padding-top:8px;text-align:center">Signature Responsable</div>
+        <div style="border-top:2px solid #6B0F1A;padding-top:8px;text-align:center">Cachet SIBEE</div>
+      </div>
+      <button onclick="window.print()" style="margin-top:20px;padding:10px 24px;background:#6B0F1A;color:#F0DFA0;border:none;border-radius:4px;cursor:pointer;font-size:14px;font-weight:700">\u{1F5A8} Imprimer / Enregistrer PDF</button>
+      </body></html>`);
+      w.document.close();
+    };
+    return /* @__PURE__ */ React.createElement("div", { style: wrap }, /* @__PURE__ */ React.createElement("div", { style: { marginBottom: 20, display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 12 } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "Georgia,serif", fontSize: "clamp(18px,5vw,26px)", color: C.dark, fontWeight: "bold" } }, "Rapport mensuel"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.muted, letterSpacing: 2, textTransform: "uppercase", marginTop: 4 } }, "Statistiques par mois")), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } }, /* @__PURE__ */ React.createElement(
+      "input",
+      {
+        type: "month",
+        value: mois,
+        onChange: (e) => setMois(e.target.value),
+        style: { padding: "8px 12px", border: `1.5px solid ${C.border}`, borderRadius: 3, fontFamily: "inherit", fontSize: 13, background: C.white }
+      }
+    ), /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        onClick: printRapport,
+        disabled: !bonsMois.length,
+        style: { padding: "8px 16px", background: C.dark, color: C.goldL, border: "none", borderRadius: 3, fontFamily: "inherit", fontSize: 13, fontWeight: 700, cursor: bonsMois.length ? "pointer" : "not-allowed", opacity: bonsMois.length ? 1 : 0.5 }
+      },
+      "\u{1F5A8} Imprimer PDF"
+    ))), /* @__PURE__ */ React.createElement("div", { className: "dash-grid", style: { marginBottom: 20 } }, [
+      { icon: "\u{1F4CB}", val: bonsMois.length, label: "Bons \xE9mis", sub: nomMois },
+      { icon: "\u{1F4B0}", val: fmt(totalFacture) + " F", label: "Total factur\xE9", sub: "ce mois" },
+      { icon: "\u2705", val: fmt(totalEncaisse) + " F", label: "Encaiss\xE9", sub: "avances & paiements" },
+      { icon: "\u23F3", val: fmt(Math.max(0, totalReste2)) + " F", label: "Reste \xE0 encaisser", alert: totalReste2 > 0 }
+    ].map((k) => /* @__PURE__ */ React.createElement("div", { key: k.label, style: { background: C.white, border: `1px solid ${k.alert ? C.warn : C.border}`, borderRadius: 3, padding: "clamp(10px,2vw,16px)", boxShadow: "0 2px 10px rgba(107,15,26,0.07)", borderLeft: `4px solid ${k.alert ? C.warn : C.dark}` } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 24, marginBottom: 6 } }, k.icon), /* @__PURE__ */ React.createElement("div", { style: { fontWeight: 800, fontSize: "clamp(14px,3vw,18px)", color: k.alert ? C.warn : C.dark } }, k.val), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.muted, marginTop: 4, textTransform: "uppercase", letterSpacing: 1 } }, k.label), k.sub && /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: C.muted, marginTop: 2 } }, k.sub)))), /* @__PURE__ */ React.createElement("div", { style: cardS }, /* @__PURE__ */ React.createElement("div", { style: secHead() }, "\u{1F465} R\xE9capitulatif par fournisseur"), bonsMois.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { padding: "32px", textAlign: "center", color: C.muted, fontSize: 13 } }, "Aucun bon pour ", nomMois) : /* @__PURE__ */ React.createElement("div", { style: { overflowX: "auto" } }, /* @__PURE__ */ React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 13 } }, /* @__PURE__ */ React.createElement("thead", null, /* @__PURE__ */ React.createElement("tr", { style: { background: C.dark } }, ["Fournisseur", "Bons", "Total", "Encaiss\xE9", "Reste", "Statut"].map((h) => /* @__PURE__ */ React.createElement("th", { key: h, style: { padding: "9px 12px", textAlign: "left", color: C.goldL, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: 1, whiteSpace: "nowrap" } }, h)))), /* @__PURE__ */ React.createElement("tbody", null, Object.entries(bonsMois.reduce((acc, b) => {
+      const k = b.fournisseur || "\u2014";
+      const t = totQ(b.qualities || DEF_Q, b.rows), av = totAv(b);
+      if (!acc[k]) acc[k] = { count: 0, total: 0, encaisse: 0 };
+      acc[k].count++;
+      acc[k].total += t;
+      acc[k].encaisse += av;
+      return acc;
+    }, {})).sort((a, b) => b[1].total - a[1].total).map(([nom, s], i) => {
+      const reste2 = s.total - s.encaisse;
+      return /* @__PURE__ */ React.createElement("tr", { key: nom, style: { background: i % 2 === 0 ? C.white : C.alt } }, /* @__PURE__ */ React.createElement("td", { style: { padding: "9px 12px", fontWeight: 700, color: C.dark } }, nom), /* @__PURE__ */ React.createElement("td", { style: { padding: "9px 12px", color: C.muted, textAlign: "center" } }, s.count), /* @__PURE__ */ React.createElement("td", { style: { padding: "9px 12px", fontWeight: 700 } }, fmt(s.total), " F"), /* @__PURE__ */ React.createElement("td", { style: { padding: "9px 12px", color: "#1a6b3a", fontWeight: 600 } }, fmt(s.encaisse), " F"), /* @__PURE__ */ React.createElement("td", { style: { padding: "9px 12px", color: reste2 > 0 ? C.warn : "#1a6b3a", fontWeight: 700 } }, fmt(Math.max(0, reste2)), " F"), /* @__PURE__ */ React.createElement("td", { style: { padding: "9px 12px" } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: reste2 <= 0 ? "rgba(26,107,58,0.12)" : "rgba(192,57,43,0.1)", color: reste2 <= 0 ? "#1a6b3a" : C.warn } }, reste2 <= 0 ? "\u2705 Sold\xE9" : "\u23F3 En attente")));
+    }))))));
+  };
+  const navItems = [
+    { id: "dashboard", label: "Tableau de bord", icon: "\u{1F4CA}" },
+    { id: "list", label: `Bons (${bons.length})`, icon: "\u{1F4CB}" },
+    { id: "rapport", label: "Rapport", icon: "\u{1F4D1}" },
+    { id: "fournisseurs", label: "Fournisseurs", icon: "\u{1F465}" }
+  ];
+  const LoginScreen = () => /* @__PURE__ */ React.createElement("div", { style: { minHeight: "100vh", background: `linear-gradient(135deg, ${C.dark} 0%, #3d0910 100%)`, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 } }, /* @__PURE__ */ React.createElement("div", { style: { background: C.white, borderRadius: 8, width: "100%", maxWidth: "min(400px,95vw)", overflow: "hidden", boxShadow: "0 30px 80px rgba(0,0,0,0.5)" } }, /* @__PURE__ */ React.createElement("div", { style: { background: C.dark, padding: "36px 24px", textAlign: "center" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 48, marginBottom: 10 } }, "\u{1F33F}"), /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "Georgia,serif", color: C.goldL, fontSize: 28, fontWeight: "bold", letterSpacing: 3 } }, "SIBEE"), /* @__PURE__ */ React.createElement("div", { style: { color: C.gold, fontSize: 11, letterSpacing: 4, textTransform: "uppercase", marginTop: 6 } }, "Import-Export")), /* @__PURE__ */ React.createElement("div", { style: { padding: "32px 28px" } }, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "Georgia,serif", fontSize: 18, color: C.dark, fontWeight: "bold", marginBottom: 6, textAlign: "center" } }, "Connexion s\xE9curis\xE9e"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: C.muted, textAlign: "center", marginBottom: 24 } }, "Entrez le mot de passe pour acc\xE9der \xE0 l'application"), /* @__PURE__ */ React.createElement("label", { style: { display: "block", fontSize: 11, fontWeight: 700, color: C.dark, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 } }, "Mot de passe"), /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      type: "password",
+      value: pwInput,
+      onChange: (e) => {
+        setPwInput(e.target.value);
+        setPwError(false);
+      },
+      onKeyDown: (e) => {
+        if (e.key === "Enter") {
+          if (pwInput === APP_PASSWORD) {
+            setIsAuth(true);
+            localStorage.setItem("sibee-auth", "1");
+          } else {
+            setPwError(true);
+            setPwInput("");
+          }
+        }
+      },
+      placeholder: "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022",
+      autoFocus: true,
+      style: { width: "100%", padding: "14px 16px", border: `2px solid ${pwError ? C.warn : C.border}`, borderRadius: 4, fontFamily: "inherit", fontSize: 16, outline: "none", marginBottom: pwError ? 8 : 16, transition: "border .2s" }
+    }
+  ), pwError && /* @__PURE__ */ React.createElement("div", { style: { color: C.warn, fontSize: 12, fontWeight: 600, marginBottom: 12 } }, "\u26A0 Mot de passe incorrect"), /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      onClick: () => {
+        if (pwInput === APP_PASSWORD) {
+          setIsAuth(true);
+          localStorage.setItem("sibee-auth", "1");
+        } else {
+          setPwError(true);
+          setPwInput("");
+        }
+      },
+      style: { width: "100%", padding: "14px", background: C.dark, color: C.goldL, border: "none", borderRadius: 4, fontFamily: "inherit", fontSize: 14, fontWeight: 700, cursor: "pointer", letterSpacing: 1 }
+    },
+    "\u{1F513} Acc\xE9der \xE0 l'application"
+  ), /* @__PURE__ */ React.createElement("div", { style: { marginTop: 20, padding: "12px 14px", background: C.bg, borderRadius: 4, fontSize: 11, color: C.muted, textAlign: "center" } }, "\u{1F510} Acc\xE8s r\xE9serv\xE9 au personnel SIBEE"))));
+  useEffect(() => {
+    try {
+      if (localStorage.getItem("sibee-auth") === "1") setIsAuth(true);
+    } catch (e) {
+    }
+  }, []);
+  if (!isAuth) return /* @__PURE__ */ React.createElement(LoginScreen, null);
+  return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("style", null, css), qModal && QModal(), deleteModal && DeleteModal(), printModal && PrintModal(), /* @__PURE__ */ React.createElement("div", { style: { minHeight: "100vh", background: C.bg, fontFamily: "'DM Sans',Georgia,sans-serif", color: C.text } }, /* @__PURE__ */ React.createElement("nav", { style: { background: C.dark, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 clamp(8px,3vw,24px)", height: "clamp(50px,8vw,60px)", boxShadow: "0 2px 16px rgba(107,15,26,0.4)", position: "sticky", top: 0, zIndex: 100 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "clamp(6px,2vw,20px)" } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "Georgia,serif", color: C.goldL, fontSize: "clamp(13px,3vw,18px)", letterSpacing: "clamp(1px,0.5vw,2px)", fontWeight: "bold" } }, "SIBEE"), /* @__PURE__ */ React.createElement("div", { className: "nav-sub" }, "Import-Export")), /* @__PURE__ */ React.createElement("div", { className: "nav-links", style: { display: "flex", gap: 2 } }, navItems.map((n) => /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      key: n.id,
+      onClick: () => setView(n.id),
+      style: { padding: "clamp(5px,1.5vw,7px) clamp(6px,2vw,14px)", fontFamily: "inherit", fontSize: "clamp(9px,1.5vw,11px)", fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", border: "none", background: view === n.id ? C.gold : "transparent", color: view === n.id ? C.dark : C.goldL, cursor: "pointer", borderRadius: 2, display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }
+    },
+    n.icon,
+    " ",
+    /* @__PURE__ */ React.createElement("span", { className: "nav-label" }, n.label),
+    n.id === "list" && notifications.length > 0 && /* @__PURE__ */ React.createElement("span", { className: "notif-dot" })
+  )))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } }, /* @__PURE__ */ React.createElement(
+    "div",
+    {
+      title: "Statut synchronisation JSONBin",
+      style: { padding: "5px 10px", background: syncStatus === "error" ? "rgba(192,57,43,0.15)" : syncStatus === "loading" || syncStatus === "saving" ? "rgba(212,168,67,0.15)" : "rgba(26,107,58,0.15)", border: `1px solid ${syncStatus === "error" ? C.warn : syncStatus === "loading" || syncStatus === "saving" ? C.gold : "#4CAF50"}`, borderRadius: 3, fontSize: 11, fontWeight: 700, color: syncStatus === "error" ? C.warn : syncStatus === "loading" || syncStatus === "saving" ? C.goldD : "#4CAF50", display: "flex", alignItems: "center", gap: 5, cursor: "default" }
+    },
+    syncStatus === "loading" ? "\u23F3 Chargement" : syncStatus === "saving" ? "\u{1F4BE} Sauvegarde" : syncStatus === "error" ? "\u274C Hors ligne" : "\u2601\uFE0F Synchronis\xE9"
+  ), /* @__PURE__ */ React.createElement(Btn, { v: "gold", sm: true, onClick: handleNew }, "+ Bon"), /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      onClick: () => {
+        setIsAuth(false);
+        localStorage.removeItem("sibee-auth");
+      },
+      title: "Se d\xE9connecter",
+      style: { padding: "6px 10px", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 3, cursor: "pointer", fontSize: 12, color: C.goldL }
+    },
+    "\u{1F512}"
+  ))), view === "form" && /* @__PURE__ */ React.createElement("div", { style: { background: C.main, padding: "6px 14px", fontSize: 11, color: C.goldL } }, /* @__PURE__ */ React.createElement("span", { style: { cursor: "pointer", opacity: 0.7 }, onClick: () => setView("list") }, "Bons"), /* @__PURE__ */ React.createElement("span", { style: { margin: "0 6px" } }, "\u203A"), /* @__PURE__ */ React.createElement("span", null, editId ? "Modifier" : "Nouveau bon")), view === "dashboard" && Dashboard(), view === "form" && FormView(), view === "list" && ListView(), view === "rapport" && RapportView(), view === "fournisseurs" && FournisseursView()));
+}
+
+
+    // Patcher App pour masquer le loader
+    var _OrigApp = App;
+    function AppWithLoader(){
+      React.useEffect(function(){ if(window.__hideLo) window.__hideLo(); },[]);
+      return React.createElement(_OrigApp, null);
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(
+      React.createElement(AppWithLoader, null)
+    );
+  </script>
+</body>
+</html>
